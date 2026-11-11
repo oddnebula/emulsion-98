@@ -397,6 +397,9 @@ struct Inspector: View {
                     }
                     PlatinumPopup(title: "Format:", selection: $lib.settings.format,
                                   options: FilmFormat.allCases.map { ($0, $0.label) })
+                    PlatinumPopup(title: "Border:", selection: $lib.settings.border,
+                                  options: FilmBorder.allCases.map { ($0, $0.label) })
+                        .balloon("Film border, added when you develop: the rough black edge of a filed negative carrier on a white paper margin, or a full-frame scan of the strip with sprocket holes and edge printing.")
                     PlatinumPopup(title: "Save as:", selection: $lib.exportFormat,
                                   options: ExportFormat.allCases.map { ($0, $0.label) })
                     PlatinumPopup(title: "Send to:", selection: $lib.destination,
@@ -430,6 +433,11 @@ struct Inspector: View {
                             abs($0) < 0.5 ? "0 CC" : String(format: "%+.0f CC", $0)
                         }
                         .balloon(lib.stock.kind == .blackWhite ? "Magenta in the colour head: less green light, a harder grade." : "Magenta filtration: more magenta takes green light away and makes the print greener.")
+                        if lib.settings.lab == .print || lib.stock.kind == .blackWhite {
+                            PlatinumPopup(title: "Paper:", selection: $lib.settings.paperSurface,
+                                          options: PaperSurface.allCases.map { ($0, $0.label) })
+                                .balloon("Paper surface. Glossy prints the deepest blacks; lustre and matte reflect more light off their surface, so blacks are softer.")
+                        }
                         PlatinumSlider(title: "Pre-flash", value: $lib.settings.preflash, range: 0...1, defaultValue: 0) {
                             $0 < 0.01 ? "Off" : String(format: "%.0f%%", $0 * 100)
                         }

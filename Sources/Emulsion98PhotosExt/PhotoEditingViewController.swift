@@ -125,7 +125,7 @@ final class ExtModel: ObservableObject {
                                     "agitation": s.agitation.rawValue, "ageYears": "\(s.ageYears)", "storage": s.storage.rawValue,
                                     "filter": s.filter.rawValue, "crossProcess": "\(s.crossProcess)", "redscale": "\(s.redscale)",
                                     "ccYellow": "\(s.ccYellow)", "ccMagenta": "\(s.ccMagenta)", "printExposure": "\(s.printExposure)",
-                                    "preflash": "\(s.preflash)", "paperGrade": "\(s.paperGrade)"])) ?? Data()
+                                    "preflash": "\(s.preflash)", "paperGrade": "\(s.paperGrade)", "paperSurface": s.paperSurface.rawValue])) ?? Data()
     }
 
     func restore(_ data: Data) {
@@ -150,6 +150,7 @@ final class ExtModel: ObservableObject {
         if let v = d["printExposure"].flatMap(Float.init) { s.printExposure = v }
         if let v = d["preflash"].flatMap(Float.init) { s.preflash = v }
         if let v = d["paperGrade"].flatMap(Float.init) { s.paperGrade = v }
+        if let v = d["paperSurface"].flatMap(PaperSurface.init(rawValue:)) { s.paperSurface = v }
         settings = s
         if let id = d["stock"], FilmStock.stock(id: id) != nil { stockID = id }
     }

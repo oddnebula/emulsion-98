@@ -38,6 +38,8 @@ if let v = opt("--cc-m").flatMap(Float.init) { settings.ccMagenta = v }
 if let v = opt("--print-ev").flatMap(Float.init) { settings.printExposure = v }
 if let v = opt("--preflash").flatMap(Float.init) { settings.preflash = v }
 if let v = opt("--grade").flatMap(Float.init) { settings.paperGrade = v }
+if let v = opt("--border"), let b = FilmBorder(rawValue: v) { settings.border = b }
+if let v = opt("--surface"), let b = PaperSurface(rawValue: v) { settings.paperSurface = b }
 let kelvinOpt = opt("--kelvin").flatMap(Float.init)
 let timeOpt = opt("--time").flatMap(Double.init)
 
@@ -103,7 +105,8 @@ case "develop":
         var ctx = photo.context(seed: PhotoIO.seed(for: input))
         if let k = kelvinOpt { ctx.sceneKelvin = k }
         if let t = timeOpt { ctx.exposureTime = t }
-        let out = timeit(s.id) { Developer.develop(photo.image, stock: s, settings: settings, context: ctx) }
+        var out = timeit(s.id) { Developer.develop(photo.image, stock: s, settings: settings, context: ctx) }
+        out = Border.apply(out, style: settings.border, format: settings.format, stock: s, seed: ctx.seed)
         try PhotoIO.save(out, to: outDir.appendingPathComponent("\(s.id).jpg"), format: .jpeg, source: input, stockName: s.displayName)
     }
 

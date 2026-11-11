@@ -84,12 +84,19 @@ Most "film filters" are a colour lookup table and a grain overlay. **Emulsion 98
 | **Redscale** | Film loaded backwards: light passes through the orange base and the layers in reverse order. |
 | **Agitation** | Continuous, intermittent or stand development: developer exhaustion, edge effects, compensation and bromide drag. |
 | **Expired film** | Per-layer speed loss, chemical fog and flatter contrast by storage (freezer to hot car), plus speed-dependent radiation fog. |
+| **Formats** | Half frame, 35 mm, 6×4.5, 6×6, 6×7 and 4×5 sheet film. A bigger negative means finer grain and less halation relative to the picture. |
+| **Paper surface** | Glossy, lustre or matte. Surface reflection sets the print's deepest black (about D-max 2.3, 2.0 and 1.6). |
+| **Borders** | A filed negative carrier (rough black rebate on a white paper margin), or a full-frame scan of the strip with ISO 35 mm perforations (4.75 mm pitch) and edge printing. Added when you develop. |
 | **Reciprocity failure** | Schwarzschild law per layer, from the EXIF shutter speed. |
 | **Scene light** | The film sees the real colour temperature from the RAW's white balance, and the lab corrects only part of it. |
 
 <p align="center">
   <img src="docs/images/printing.jpg" alt="Darkroom printing simulation: Tri-X on multigrade paper at grades 00, 2 and 5; Portra 400 printed with +15 yellow and +15 magenta filtration, and as a lab scan" width="100%">
   <br><sub>Printing: Tri-X on variable-contrast paper at grades 00, 2 and 5 (top). Portra 400 with +15 Y and +15 M enlarger filtration, and as a lab scan (bottom).</sub>
+</p>
+
+<p align="center">
+  <img src="docs/images/borders.jpg" alt="Film borders: a full-frame 35mm scan with sprocket holes and edge printing on Portra 400, and a filed negative carrier print on matte paper with Tri-X" width="100%">
 </p>
 
 ## ▸ How the Film Simulation Works
@@ -199,6 +206,12 @@ It's a native SwiftUI app styled after 1998's Mac OS 8 Platinum appearance. Ever
 - A **bomb dialog** and a **Sad Camera** for errors, and an About box with a secret (click the camera).
 - **Get Info** (⌘I), a split before/after view (⌘\\), and keyboard navigation (⌘← ⌘→ for photos, ⌘↑ ⌘↓ for films).
 
+## ▸ Download
+
+Get the latest **[release](https://github.com/oddnebula/emulsion-98/releases/latest)**: unzip it and move *Emulsion 98.app* to `/Applications`.
+
+The app is signed ad hoc, not notarised by Apple, so the first time you open it, **right-click it and choose Open**, then confirm. If macOS still refuses, run `xattr -dr com.apple.quarantine "/Applications/Emulsion 98.app"` once. To use it inside Photos, launch the app once, then enable *Emulsion 98* under **Edit ▸ ⋯ ▸ More…** in Photos.
+
 ## ▸ Installation
 
 **System requirements:** macOS 15 Sequoia or later on Apple silicon or Intel, plus the Xcode Command Line Tools (Swift 6). Xcode itself is not needed.
@@ -227,6 +240,7 @@ swift build -c release
 .build/release/emulsion-cli develop photo.RW2 trix400 out/ --filter red25 --agitation stand
 .build/release/emulsion-cli develop photo.RW2 velvia50 out/ --xpro     # cross-process; also --redscale, --scan, --push 2, --age 15 --storage fridge
 .build/release/emulsion-cli develop photo.RW2 hp5 out/ --grade 4 --preflash 0.5           # multigrade paper; also --cc-y 10 --cc-m 5 --print-ev 0.2
+.build/release/emulsion-cli develop photo.RW2 portra400 out/ --border fullFrame --format mf67 --surface lustre
 .build/release/emulsion-cli sheet photo.RW2 sheet.jpg                  # contact sheet of every stock
 .build/release/emulsion-cli crop photo.RW2 cinestill800t c.jpg         # 1:1 crop
 .build/release/emulsion-cli diag portra400                             # ColorChecker accuracy
@@ -235,6 +249,17 @@ swift build -c release
 ```
 
 `scripts/make_readme_images.sh` regenerates every comparison image in this README.
+
+## ▸ Lab Notebook
+
+These ideas were tested and dropped, so the model only keeps what measurably matters:
+
+| Idea | Result |
+|---|---|
+| Biophysical skin model (melanin and haemoglobin tissue optics) | Could not reproduce pale or rosy skin chromaticity (off by about 0.02 in xy). Replaced by measured NIST skin spectra. |
+| Rayleigh + Mie sky spectra for blue-sky colours | Changed film exposure by under 2 %: the smooth basis already matches skylight. Removed. |
+| Wider lateral spread for interlayer DIR inhibitors | Raised the overshoot of the MTF peak (Ektar from 141 % to 152 %). Reverted. |
+| Boolean dye-cloud grain rendering | At RAW resolutions dye clouds are about a pixel wide, where the binned sub-emulsion statistics are equivalent. Not adopted. |
 
 ## ▸ FAQ
 

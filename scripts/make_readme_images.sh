@@ -33,6 +33,10 @@ dev portra_m portra400 --cc-m 15
 swift scripts/contact_sheet.swift docs/images/printing.jpg 3 640 \
   "Tri-X · paper grade 00=$T/trix_g00.jpg" "Tri-X · paper grade 2=$T/trix400.jpg" "Tri-X · paper grade 5=$T/trix_g5.jpg" \
   "Portra · +15 Y filtration=$T/portra_y.jpg" "Portra · lab scan=$T/portra_scan.jpg" "Portra · +15 M filtration=$T/portra_m.jpg"
+dev portra_border portra400 --border fullFrame
+dev trix_border trix400 --border filed --surface matte
+swift scripts/contact_sheet.swift docs/images/borders.jpg 2 900 \
+  "Portra 400 · full-frame scan border=$T/portra_border.jpg" "Tri-X 400 · filed carrier, matte paper=$T/trix_border.jpg"
 # 1:1 grain and halation
 $B crop $IN cinestill800t $T/halo.jpg --size 520 --cx 0.61 --cy 0.26 >/dev/null
 $B crop $IN portra800 $T/g1.jpg --size 520 --cx 0.80 --cy 0.42 >/dev/null

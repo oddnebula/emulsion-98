@@ -59,7 +59,8 @@ actor RenderService {
     func export(_ url: URL, stock: FilmStock, settings: DevelopSettings, to dest: URL, format: ExportFormat) throws {
         let p = try PhotoIO.load(url)
         let ctx = p.context(seed: PhotoIO.seed(for: url))
-        let dev = Developer.develop(p.image, stock: stock, settings: settings, context: ctx)
+        var dev = Developer.develop(p.image, stock: stock, settings: settings, context: ctx)
+        dev = Border.apply(dev, style: settings.border, format: settings.format, stock: stock, seed: ctx.seed)
         try PhotoIO.save(dev, to: dest, format: format, source: url, stockName: stock.displayName)
     }
 }
@@ -364,7 +365,7 @@ final class Library: ObservableObject {
                                                         "crossProcess": "\(settings.crossProcess)", "redscale": "\(settings.redscale)",
                                                         "ccYellow": "\(settings.ccYellow)", "ccMagenta": "\(settings.ccMagenta)",
                                                         "printExposure": "\(settings.printExposure)", "preflash": "\(settings.preflash)",
-                                                        "paperGrade": "\(settings.paperGrade)"])) ?? Data()
+                                                        "paperGrade": "\(settings.paperGrade)", "paperSurface": settings.paperSurface.rawValue])) ?? Data()
             for p in list {
                 status = "Developing \(p.name) in \(stock.displayName)… (\(done + 1) of \(list.count))"
                 let base = p.url.deletingPathExtension().lastPathComponent

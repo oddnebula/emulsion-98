@@ -3,15 +3,36 @@ import Accelerate
 import simd
 
 public enum FilmFormat: String, CaseIterable, Codable, Identifiable {
-    case mm35, mf645, mf67
+    case halfFrame, mm35, mf645, mf66, mf67, lf45
     public var id: String { rawValue }
     /// Long side of the frame in millimetres — sets grain size relative to the picture.
     public var longSideMM: Float {
-        switch self { case .mm35: 36; case .mf645: 56; case .mf67: 70 }
+        switch self { case .halfFrame: 24; case .mm35: 36; case .mf645: 56; case .mf66: 56; case .mf67: 70; case .lf45: 120 }
     }
     public var label: String {
-        switch self { case .mm35: "35mm"; case .mf645: "120 · 6×4.5"; case .mf67: "120 · 6×7" }
+        switch self {
+        case .halfFrame: "Half frame (18×24)"; case .mm35: "35mm"; case .mf645: "120 · 6×4.5"; case .mf66: "120 · 6×6"
+        case .mf67: "120 · 6×7"; case .lf45: "Large format 4×5"
+        }
     }
+    /// Roll or sheet film (for borders): 35 mm / half frame have sprocket holes.
+    public var hasSprockets: Bool { self == .halfFrame || self == .mm35 }
+}
+
+/// Print paper surface: how much light reflects off the surface before reaching the image, which sets
+/// how deep the blacks can be (glossy ≈ D-max 2.3, lustre ≈ 2.0, matte ≈ 1.6).
+public enum PaperSurface: String, CaseIterable, Codable, Identifiable {
+    case glossy, lustre, matte
+    public var id: String { rawValue }
+    public var label: String { switch self { case .glossy: "Glossy"; case .lustre: "Lustre"; case .matte: "Matte" } }
+    var flare: Float { switch self { case .glossy: 0.004; case .lustre: 0.010; case .matte: 0.025 } }
+}
+
+/// Frame border on the developed picture.
+public enum FilmBorder: String, CaseIterable, Codable, Identifiable {
+    case none, filed, fullFrame
+    public var id: String { rawValue }
+    public var label: String { switch self { case .none: "None"; case .filed: "Filed carrier"; case .fullFrame: "Full-frame scan" } }
 }
 
 public struct DevelopSettings: Codable, Equatable {
@@ -50,10 +71,12 @@ public struct DevelopSettings: Codable, Equatable {
     public var preflash: Float = 0
     /// B&W variable-contrast paper grade (−1 = "00" … 5); 2 ≈ unfiltered.
     public var paperGrade: Float = 2
+    public var paperSurface: PaperSurface = .glossy
+    public var border: FilmBorder = .none
     public init() {}
 
     // Tolerant decoding: settings saved by older versions keep working when fields are added.
-    enum CodingKeys: String, CodingKey { case exposure, push, grain, halation, format, sceneLight, labCorrection, reciprocity, lab, agitation, ageYears, storage, filter, crossProcess, redscale, ccYellow, ccMagenta, printExposure, preflash, paperGrade }
+    enum CodingKeys: String, CodingKey { case exposure, push, grain, halation, format, sceneLight, labCorrection, reciprocity, lab, agitation, ageYears, storage, filter, crossProcess, redscale, ccYellow, ccMagenta, printExposure, preflash, paperGrade, paperSurface, border }
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         exposure = try c.decodeIfPresent(Float.self, forKey: .exposure) ?? 0
@@ -76,6 +99,8 @@ public struct DevelopSettings: Codable, Equatable {
         printExposure = try c.decodeIfPresent(Float.self, forKey: .printExposure) ?? 0
         preflash = try c.decodeIfPresent(Float.self, forKey: .preflash) ?? 0
         paperGrade = try c.decodeIfPresent(Float.self, forKey: .paperGrade) ?? 2
+        paperSurface = try c.decodeIfPresent(PaperSurface.self, forKey: .paperSurface) ?? .glossy
+        border = try c.decodeIfPresent(FilmBorder.self, forKey: .border) ?? .none
     }
 }
 
@@ -274,6 +299,15 @@ public enum Developer {
         // 8b. Lab scanner optics: its lens / CCD blur (≈ 4000 dpi class) and the fixed unsharp mask
         //     minilab scanners apply, which is part of the familiar crisp, grain-forward scan look.
         if scanner != nil { scannerOptics(&out, pixelUm: pixelUm) }
+
+        // 8c. Paper surface: lustre and matte papers reflect more light off their surface than glossy (whose
+        //     0.4 % is already in the print model), lifting the blacks toward the paper white.
+        if scanner == nil && stock.kind != .slide && settings.paperSurface != .glossy {
+            let extra = (settings.paperSurface.flare - PaperSurface.glossy.flare) / (1 - PaperSurface.glossy.flare)
+            for i in 0..<out.r.count {
+                out.r[i] = out.r[i] * (1 - extra) + extra; out.g[i] = out.g[i] * (1 - extra) + extra; out.b[i] = out.b[i] * (1 - extra) + extra
+            }
+        }
 
         // 9. Optional residual look adjustment, gamut mapping, encode.
         if stock.hasResidual && !isBW {
