@@ -88,12 +88,18 @@ Most "film filters" are a colour lookup table and a grain overlay. **Emulsion 98
 | **Formats** | Half frame, 35 mm, 6×4.5, 6×6, 6×7 and 4×5 sheet film. A bigger negative means finer grain and less halation relative to the picture. |
 | **Paper surface** | Glossy, lustre or matte. Surface reflection sets the print's deepest black (about D-max 2.3, 2.0 and 1.6). |
 | **Borders** | A filed negative carrier (rough black rebate on a white paper margin), or a full-frame scan of the strip with ISO 35 mm perforations (4.75 mm pitch) and edge printing. Added when you develop. |
+| **Archival fading** | The finished print or slide ages for up to 80 years, in the dark or on display. Each dye fades at its own rate and leftover couplers turn the whites yellow, so old album prints go red, Ektachrome goes magenta, cine prints go pink and framed prints go cyan. For lab scans, the stored negative fades and is scanned as it is now. |
 | **Reciprocity failure** | Schwarzschild law per layer, from the EXIF shutter speed. |
 | **Scene light** | The film sees the real colour temperature from the RAW's white balance, and the lab corrects only part of it. |
 
 <p align="center">
   <img src="docs/images/printing.jpg" alt="Darkroom printing simulation: Tri-X on multigrade paper at grades 00, 2 and 5; Portra 400 printed with +15 yellow and +15 magenta filtration, and as a lab scan" width="100%">
   <br><sub>Printing: Tri-X on variable-contrast paper at grades 00, 2 and 5 (top). Portra 400 with +15 Y and +15 M enlarger filtration, and as a lab scan (bottom).</sub>
+</p>
+
+<p align="center">
+  <img src="docs/images/fading.jpg" alt="Archival fading simulation: a new Portra print, the same print after 40 years in an album and 40 years framed, Ektachrome and Kodachrome slides after decades in a box, and a faded Vision3 cine print" width="100%">
+  <br><sub>Archival fading: a Portra print new, after 40 years in an album and 40 years on a wall (top). Ektachrome and Kodachrome after decades in a slide box, and a 50-year-old cine print (bottom).</sub>
 </p>
 
 <p align="center">
@@ -161,7 +167,20 @@ Emulsion scatter uses a long-tailed PSF (a 4-Gaussian fit of the Frieser MTF 1/(
 </details>
 
 <details>
-<summary><b>7 · Calibration and accuracy</b></summary>
+<summary><b>7 · Archival fading</b></summary>
+
+- Applied to the final image dyes (print or slide), after the lab has balanced the fresh picture, so the fade is never corrected away.
+- Each dye keeps a fraction e<sup>−r·t</sup> of its density (first-order dye loss), with its own rate per dye, material and keeping.
+- **In the dark:** colour paper loses cyan first (prints go red), E-6 slides lose cyan and yellow (magenta), Eastmancolor cine prints lose cyan and yellow (pink), and Kodachrome barely changes (yellow is its weakest dye). Leftover couplers form a yellow stain that grows and then levels off.
+- **On display:** light fades magenta and yellow fastest (prints go cyan), and thin dye fades proportionally faster than dense dye, so highlights and pastels go first. Light also bleaches most of the stain.
+- **B&W:** washed silver is very stable; the gelatin and paper base slowly yellow.
+- **Lab scans:** the negative fades in its sleeve, and the scanner's auto-balance sees it as it is now. The mid-tones come back neutral but the highlights and shadows cross over.
+- The rates follow the published dark-keeping and light-fading behaviour of 1970s–90s chromogenic materials (after Wilhelm, 1993). Modern papers fade several times more slowly.
+- Fading is per pixel, so it is included in exported LUTs.
+</details>
+
+<details>
+<summary><b>8 · Calibration and accuracy</b></summary>
 
 - **Measured stocks** get no colour calibration: their character comes entirely from the data.
 - **Grey scale:** every stock holds a neutral grey ramp across about ±5 stops.
@@ -250,6 +269,7 @@ swift build -c release
 .build/release/emulsion-cli develop photo.RW2 velvia50 out/ --xpro     # cross-process; also --redscale, --scan, --push 2, --age 15 --storage fridge
 .build/release/emulsion-cli develop photo.RW2 hp5 out/ --grade 4 --preflash 0.5           # multigrade paper; also --cc-y 10 --cc-m 5 --print-ev 0.2
 .build/release/emulsion-cli develop photo.RW2 portra400 out/ --border fullFrame --format mf67 --surface lustre
+.build/release/emulsion-cli develop photo.RW2 e100 out/ --print-age 40 --keeping album        # archival fading (album | framed)
 .build/release/emulsion-cli sheet photo.RW2 sheet.jpg                  # contact sheet of every stock
 .build/release/emulsion-cli crop photo.RW2 cinestill800t c.jpg         # 1:1 crop
 .build/release/emulsion-cli diag portra400                             # ColorChecker accuracy
@@ -257,6 +277,7 @@ swift build -c release
 .build/release/emulsion-cli lutcheck photo.jpg portra400               # LUT vs full develop, in 8-bit levels
 .build/release/emulsion-cli granularity portra400                      # RMS granularity vs density
 .build/release/emulsion-cli mtf velvia50                               # system MTF, datasheet-style
+.build/release/emulsion-cli fade all --keeping framed                  # patch colours over 0–80 years
 ```
 
 `scripts/make_readme_images.sh` regenerates every comparison image in this README.

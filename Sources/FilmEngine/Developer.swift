@@ -73,10 +73,13 @@ public struct DevelopSettings: Codable, Equatable {
     public var paperGrade: Float = 2
     public var paperSurface: PaperSurface = .glossy
     public var border: FilmBorder = .none
+    /// Years the finished print / slide (or, for scans, the negative) has been kept, and how.
+    public var printAge: Float = 0
+    public var keeping: Keeping = .album
     public init() {}
 
     // Tolerant decoding: settings saved by older versions keep working when fields are added.
-    enum CodingKeys: String, CodingKey { case exposure, push, grain, halation, format, sceneLight, labCorrection, reciprocity, lab, agitation, ageYears, storage, filter, crossProcess, redscale, ccYellow, ccMagenta, printExposure, preflash, paperGrade, paperSurface, border }
+    enum CodingKeys: String, CodingKey { case exposure, push, grain, halation, format, sceneLight, labCorrection, reciprocity, lab, agitation, ageYears, storage, filter, crossProcess, redscale, ccYellow, ccMagenta, printExposure, preflash, paperGrade, paperSurface, border, printAge, keeping }
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         exposure = try c.decodeIfPresent(Float.self, forKey: .exposure) ?? 0
@@ -101,6 +104,8 @@ public struct DevelopSettings: Codable, Equatable {
         paperGrade = try c.decodeIfPresent(Float.self, forKey: .paperGrade) ?? 2
         paperSurface = try c.decodeIfPresent(PaperSurface.self, forKey: .paperSurface) ?? .glossy
         border = try c.decodeIfPresent(FilmBorder.self, forKey: .border) ?? .none
+        printAge = try c.decodeIfPresent(Float.self, forKey: .printAge) ?? 0
+        keeping = try c.decodeIfPresent(Keeping.self, forKey: .keeping) ?? .album
     }
 }
 
@@ -186,8 +191,10 @@ public enum Developer {
         var balance = model.balance(scene: table, tone: tone, ev: filmEV, correction: correction, neutral: neutral,
                                     densityEV: reciprocityEV)
         let scanner = stock.kind == .colorNegative && settings.lab == .scan ? model.scanModel(push: settings.push) : nil
+        // Archival fading of the finished print / slide (or, for a scan, of the stored negative).
+        let fade = Fade.of(stock, keeping: settings.keeping, years: settings.printAge, negative: scanner != nil)
         var scanBal = scanner.map { model.scanBalance($0, scene: table, tone: tone, ev: filmEV, correction: correction,
-                                                       densityEV: reciprocityEV) } ?? .zero
+                                                       densityEV: reciprocityEV, fade: fade) } ?? .zero
         // The printer's own hand: dichroic filtration (+Y removes blue light from the enlarger → a bluer
         // print; +M → a greener print) and print exposure (+1 stop → a darker print). On a scan the same
         // controls shift the scanner's channel levels the same visual way.
@@ -292,8 +299,8 @@ public enum Developer {
 
         // 8. Printing (negatives) / viewing (slides): spectral dyes -> paper -> D65 viewing.
         map3(&R, &G, &B) { r, g, b in
-            var c = scanner?.render(SIMD3(r, g, b), balance: scanBal)
-                ?? model.render(SIMD3(r, isBW ? r : g, isBW ? r : b), balance: balance, neutral: neutral, flash: flash, bwKp: bwKp)
+            var c = scanner?.render(SIMD3(r, g, b), balance: scanBal, fade: fade)
+                ?? model.render(SIMD3(r, isBW ? r : g, isBW ? r : b), balance: balance, neutral: neutral, flash: flash, bwKp: bwKp, fade: fade)
             if !isBW { c = model.profile(c) }
             r = c.x; g = c.y; b = c.z
         }

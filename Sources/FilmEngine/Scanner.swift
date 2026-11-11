@@ -90,8 +90,8 @@ final class ScanModel {
     }
 
     /// Layer densities -> display-linear sRGB. `balance` is the per-channel scan-density correction.
-    @inline(__always) func render(_ d: SIMD3<Float>, balance: SIMD3<Float>) -> SIMD3<Float> {
-        let s = negToScan.sample(d) + balance
+    @inline(__always) func render(_ d: SIMD3<Float>, balance: SIMD3<Float>, fade: Fade? = nil) -> SIMD3<Float> {
+        let s = negToScan.sample(fade.map { $0.apply(d) } ?? d) + balance
         var c = SIMD3(pow(10, invert(s.x, 0)), pow(10, invert(s.y, 1)), pow(10, invert(s.z, 2)))
         let y = 0.2126 * c.x + 0.7152 * c.y + 0.0722 * c.z
         c = SIMD3(repeating: y) + (c - SIMD3(repeating: y)) * Self.saturation
@@ -114,9 +114,11 @@ extension FilmModel {
     }
 
     /// Scanner auto-balance: density is always normalised; `correction` of the scene-light cast is removed.
-    func scanBalance(_ sm: ScanModel, scene: ExposureTable, tone t: Tone, ev: Float, correction: Float, densityEV: Float = 0) -> SIMD3<Float> {
-        let keepCast = sm.mid - sm.negToScan.sample(greyDensities(table: refTable, tone: t, ev: ev + densityEV))
-        let full = sm.mid - sm.negToScan.sample(greyDensities(table: scene, tone: t, ev: ev + densityEV))
+    func scanBalance(_ sm: ScanModel, scene: ExposureTable, tone t: Tone, ev: Float, correction: Float, densityEV: Float = 0, fade: Fade? = nil) -> SIMD3<Float> {
+        // An old negative is scanned as it is now: auto-balance sees the faded grey.
+        func f(_ d: SIMD3<Float>) -> SIMD3<Float> { fade.map { $0.apply(d) } ?? d }
+        let keepCast = sm.mid - sm.negToScan.sample(f(greyDensities(table: refTable, tone: t, ev: ev + densityEV)))
+        let full = sm.mid - sm.negToScan.sample(f(greyDensities(table: scene, tone: t, ev: ev + densityEV)))
         // Auto-balance normalises the overall density (mean of the channels) completely.
         let k = keepCast + (full - keepCast) * correction
         return k

@@ -395,6 +395,15 @@ struct Inspector: View {
                         PlatinumPopup(title: "Stored:", selection: $lib.settings.storage,
                                       options: Storage.allCases.map { ($0, $0.label) })
                     }
+                    PlatinumSlider(title: Keeping.ageTitle(lib.stock, scan: lib.settings.lab == .scan), value: $lib.settings.printAge,
+                                   range: 0...80, defaultValue: 0) {
+                        $0 < 0.5 ? "Just developed" : String(format: "%.0f years old", $0)
+                    }
+                    .balloon("Archival fading. The finished picture ages after processing: each dye fades at its own rate, and unused couplers turn the whites yellow. In the dark, old prints go red and Ektachrome goes magenta; on display, light fades magenta and yellow first and prints turn cyan. Kodachrome barely fades in the dark.")
+                    if lib.settings.printAge >= 0.5 {
+                        PlatinumPopup(title: "Kept:", selection: $lib.settings.keeping,
+                                      options: Keeping.allCases.map { ($0, $0.label) })
+                    }
                     PlatinumPopup(title: "Format:", selection: $lib.settings.format,
                                   options: FilmFormat.allCases.map { ($0, $0.label) })
                     PlatinumPopup(title: "Border:", selection: $lib.settings.border,

@@ -40,6 +40,8 @@ if let v = opt("--preflash").flatMap(Float.init) { settings.preflash = v }
 if let v = opt("--grade").flatMap(Float.init) { settings.paperGrade = v }
 if let v = opt("--border"), let b = FilmBorder(rawValue: v) { settings.border = b }
 if let v = opt("--surface"), let b = PaperSurface(rawValue: v) { settings.paperSurface = b }
+if let v = opt("--print-age").flatMap(Float.init) { settings.printAge = v }
+if let v = opt("--keeping"), let k = Keeping(rawValue: v) { settings.keeping = k }
 let kelvinOpt = opt("--kelvin").flatMap(Float.init)
 let timeOpt = opt("--time").flatMap(Double.init)
 
@@ -75,6 +77,10 @@ case "ramp":
 
 case "technique":
     print(FilmDiagnostics.techniqueReport(stocks(args[1])[0], filter: settings.filter, redscale: settings.redscale))
+
+case "fade":
+    // fade <stock|all>: patch colours (8-bit sRGB in -> out) as the picture ages, for the chosen keeping.
+    for st in stocks(args[1]) { print(FilmDiagnostics.fadeReport(st, settings: settings)) }
 
 case "lut":
     // lut <stock|all> <outDir> [--size 33]

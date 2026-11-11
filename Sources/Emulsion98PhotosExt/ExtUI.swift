@@ -125,6 +125,13 @@ struct ExtRoot: View {
                     if m.settings.ageYears >= 0.5 {
                         PlatinumPopup(title: "Stored:", selection: $m.settings.storage, options: Storage.allCases.map { ($0, $0.label) })
                     }
+                    PlatinumSlider(title: Keeping.ageTitle(m.stock, scan: m.settings.lab == .scan), value: $m.settings.printAge,
+                                   range: 0...80, defaultValue: 0) {
+                        $0 < 0.5 ? "Just developed" : String(format: "%.0f years old", $0)
+                    }
+                    if m.settings.printAge >= 0.5 {
+                        PlatinumPopup(title: "Kept:", selection: $m.settings.keeping, options: Keeping.allCases.map { ($0, $0.label) })
+                    }
                     PlatinumPopup(title: "Format:", selection: $m.settings.format, options: FilmFormat.allCases.map { ($0, $0.label) })
                 }
                 }

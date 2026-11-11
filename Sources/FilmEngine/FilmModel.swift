@@ -348,7 +348,7 @@ final class FilmModel {
     /// exposure given to the paper before printing, which lifts it out of its toe so the faintest
     /// highlight detail of a dense negative prints instead of staying paper-white.
     @inline(__always) func render(_ d: SIMD3<Float>, balance: SIMD3<Float>, neutral n: Neutralizer = .identity,
-                                  flash: Float = 0, bwKp: Float = 0) -> SIMD3<Float> {
+                                  flash: Float = 0, bwKp: Float = 0, fade: Fade? = nil) -> SIMD3<Float> {
         switch stock.kind {
         case .colorNegative:
             var lp = negToPrint!.sample(d)
@@ -359,23 +359,30 @@ final class FilmModel {
                 lp = SIMD3(log10(pow(10, lp.x) + flash * pow(10, m.x)), log10(pow(10, lp.y) + flash * pow(10, m.y)),
                            log10(pow(10, lp.z) + flash * pow(10, m.z)))
             }
+            var dp: SIMD3<Float>
             if !paperCurves.isEmpty {
-                return display!.sample(SIMD3(Self.tab(paperCurves[0], lp.x), Self.tab(paperCurves[1], lp.y), Self.tab(paperCurves[2], lp.z)))
-            }
-            let dp = SIMD3(range * Developer.logistic(paperKp * lp.x),
+                dp = SIMD3(Self.tab(paperCurves[0], lp.x), Self.tab(paperCurves[1], lp.y), Self.tab(paperCurves[2], lp.z))
+            } else {
+                dp = SIMD3(range * Developer.logistic(paperKp * lp.x),
                            range * Developer.logistic(paperKp * lp.y),
                            range * Developer.logistic(paperKp * lp.z))
+            }
+            if let f = fade { dp = f.apply(dp) }
             return display!.sample(dp)
         case .slide:
             // Balance scales density, so clear film (D = 0) always stays clear.
             let dd = SIMD3(d.x + n.offset(0, d.x), d.y + n.offset(1, d.y), d.z + n.offset(2, d.z))
-            return display!.sample(simd_max(dd * SIMD3(exp(balance.x), exp(balance.y), exp(balance.z)), .zero))
+            var ds = simd_max(dd * SIMD3(exp(balance.x), exp(balance.y), exp(balance.z)), .zero)
+            if let f = fade { ds = f.apply(ds) }
+            return display!.sample(ds)
         case .blackWhite:
             let kp = bwKp > 0 ? bwKp : paperKp
             var lp = balance.x - d.x
             if flash > 0 { lp = log10(pow(10, lp) + flash * pow(10, Developer.logit(Developer.midGreyDensity / range) / kp)) }
-            let dp = range * Developer.logistic(kp * lp)
-            return SIMD3(repeating: (1 - Self.paperFlare) * pow(10, -dp) + Self.paperFlare)
+            var dp = range * Developer.logistic(kp * lp)
+            if let f = fade { dp = f.silver(dp) }
+            let v = SIMD3(repeating: (1 - Self.paperFlare) * pow(10, -dp) + Self.paperFlare)
+            return fade.map { v * $0.silverTint } ?? v
         }
     }
 

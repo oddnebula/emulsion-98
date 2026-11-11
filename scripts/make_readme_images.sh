@@ -37,6 +37,14 @@ dev portra_border portra400 --border fullFrame
 dev trix_border trix400 --border filed --surface matte
 swift scripts/contact_sheet.swift docs/images/borders.jpg 2 900 \
   "Portra 400 · full-frame scan border=$T/portra_border.jpg" "Tri-X 400 · filed carrier, matte paper=$T/trix_border.jpg"
+dev portra_album portra400 --print-age 40
+dev portra_framed portra400 --print-age 40 --keeping framed
+dev e100_album e100 --print-age 40
+dev vision_album vision250d --print-age 50
+dev kchrome_album kodachrome64 --print-age 50
+swift scripts/contact_sheet.swift docs/images/fading.jpg 3 640 \
+  "Portra · new print=$T/portra400.jpg" "Portra · 40 years in an album=$T/portra_album.jpg" "Portra · 40 years framed=$T/portra_framed.jpg" \
+  "Ektachrome · 40 years in a box=$T/e100_album.jpg" "Kodachrome · 50 years in a box=$T/kchrome_album.jpg" "Vision3 cine print · 50 years=$T/vision_album.jpg"
 # 1:1 grain and halation
 $B crop $IN cinestill800t $T/halo.jpg --size 520 --cx 0.61 --cy 0.26 >/dev/null
 $B crop $IN portra800 $T/g1.jpg --size 520 --cx 0.80 --cy 0.42 >/dev/null

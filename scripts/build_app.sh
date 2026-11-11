@@ -39,8 +39,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
   <key>CFBundleExecutable</key><string>Emulsion98</string>
   <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>1.2.0</string>
-  <key>CFBundleVersion</key><string>3</string>
+  <key>CFBundleShortVersionString</key><string>1.3.0</string>
+  <key>CFBundleVersion</key><string>4</string>
   <key>LSMinimumSystemVersion</key><string>15.0</string>
   <key>LSApplicationCategoryType</key><string>public.app-category.photography</string>
   <key>NSHighResolutionCapable</key><true/>
@@ -69,8 +69,8 @@ cat > "$EXT/Contents/Info.plist" <<'PLIST'
   <key>CFBundleIdentifier</key><string>local.emulsion98.app.photos-editing</string>
   <key>CFBundleExecutable</key><string>Emulsion98PhotosExt</string>
   <key>CFBundlePackageType</key><string>XPC!</string>
-  <key>CFBundleShortVersionString</key><string>1.2.0</string>
-  <key>CFBundleVersion</key><string>3</string>
+  <key>CFBundleShortVersionString</key><string>1.3.0</string>
+  <key>CFBundleVersion</key><string>4</string>
   <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
   <key>LSMinimumSystemVersion</key><string>15.0</string>
   <key>NSHumanReadableCopyright</key><string>Film emulation for Photos</string>
@@ -97,13 +97,22 @@ cat > "$ENT" <<'PLIST'
 </plist>
 PLIST
 
-xattr -cr "$APP"
 # Sign inside-out: the extension (sandboxed, as all app extensions must be), then the app.
-# (iCloud Drive's file provider tags bundle folders with Finder info, which codesign rejects.)
-xattr -cr "$EXT"
-codesign --force --sign - --entitlements "$ENT" "$EXT"
-xattr -cr "$APP"
-codesign --force --sign - "$APP"
+# iCloud Drive's file provider can re-tag bundle folders with Finder info at any moment, which codesign
+# rejects, so sign a copy outside the synced folder and zip that copy for releases.
+STAGE=$(mktemp -d)
+ditto --norsrc --noextattr "$APP" "$STAGE/Emulsion 98.app"
+SAPP="$STAGE/Emulsion 98.app"; SEXT="$SAPP/Contents/PlugIns/Emulsion 98 Film.appex"
+xattr -cr "$SAPP"
+codesign --force --sign - --entitlements "$ENT" "$SEXT"
+codesign --force --sign - "$SAPP"
+codesign --verify --deep --strict "$SAPP"
+VERSION=$(defaults read "$SAPP/Contents/Info.plist" CFBundleShortVersionString)
+rm -f "dist/Emulsion98-$VERSION-macOS.zip"
+ditto -c -k --norsrc --keepParent "$SAPP" "dist/Emulsion98-$VERSION-macOS.zip"
+rm -rf "$APP"; ditto --norsrc --noextattr "$SAPP" "$APP"
+rm -rf "$STAGE"
+echo "app signature ok; zipped dist/Emulsion98-$VERSION-macOS.zip"
 # Register with Launch Services so Photos finds the editing extension after every rebuild.
 /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$PWD/$APP" || true
 pluginkit -a "$PWD/$EXT" || true
