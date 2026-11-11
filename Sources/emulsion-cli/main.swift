@@ -46,6 +46,9 @@ if let v = opt("--enlarger"), let k = Enlarger(rawValue: v) { settings.enlarger 
 if let v = opt("--paper-tone"), let k = PaperTone(rawValue: v) { settings.paperTone = k }
 if let v = opt("--toner"), let k = Toner(rawValue: v) { settings.toner = k }
 if let v = opt("--toner-strength").flatMap(Float.init) { settings.tonerStrength = v }
+if let v = opt("--dust").flatMap(Float.init) { settings.dust = v }
+if let v = opt("--scratches").flatMap(Float.init) { settings.scratches = v }
+if let v = opt("--leak").flatMap(Float.init) { settings.lightLeak = v }
 if args.contains("--no-falloff") { settings.enlargerFalloff = false; args.removeAll { $0 == "--no-falloff" } }
 let kelvinOpt = opt("--kelvin").flatMap(Float.init)
 let timeOpt = opt("--time").flatMap(Double.init)

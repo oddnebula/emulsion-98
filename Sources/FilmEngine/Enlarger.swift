@@ -46,11 +46,11 @@ enum EnlargerOptics {
     /// *lighter* corners, the opposite of camera vignetting, and why printers routinely burned them in.
     static func apply(_ R: inout [Float], _ G: inout [Float], _ B: inout [Float], w: Int, h: Int, mono: Bool,
                       pixelUm: Float, format: FilmFormat, context: DevelopContext, falloff: Bool,
-                      lens: Bool = true, already: Float = 0) {
+                      lens: Bool = true, already: Float = 0, transmission: [Float]? = nil) {
         let n = w * h
         let b0 = lens ? lensBlurUm / pixelUm : 0
         let blur = max(b0 * b0 - already * already, 0).squareRoot()
-        guard blur > 0.3 || falloff else { return }
+        guard blur > 0.3 || falloff || transmission != nil else { return }
         let full = context.fullSize ?? SIMD2(w, h)
         let longPx = Float(max(full.x, full.y)), shortPx = Float(min(full.x, full.y))
         let longMM = format.longSideMM, shortMM = longMM * shortPx / max(longPx, 1)
@@ -72,6 +72,7 @@ enum EnlargerOptics {
                                 let t = (dx * dx + dy * dy) / (u * u)
                                 e /= 1 + t                     // cos²θ with tan²θ = t
                             }
+                            if let t = transmission { e *= t[i] }   // dust / base scratches block light
                             V[i] = e
                         }
                     }

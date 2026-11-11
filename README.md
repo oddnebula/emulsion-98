@@ -88,6 +88,7 @@ Most "film filters" are a colour lookup table and a grain overlay. **Emulsion 98
 | **Formats** | Half frame, 35 mm, 6×4.5, 6×6, 6×7 and 4×5 sheet film. A bigger negative means finer grain and less halation relative to the picture. |
 | **Enlarger** | The enlarging lens's blur (about 45 lp/mm at 50 % MTF) and corner falloff (corners get about 84 % of the light, so they print lighter, the opposite of camera vignetting). For B&W, a diffusion or condenser head: the condenser's Callier effect prints silver negatives about a grade harder, with crisper grain. |
 | **Paper tone & toning (B&W)** | Neutral, warm-tone (cream base) or cold-tone paper, and selenium or sepia toning, rendered spectrally. Selenium converts the densest silver first (deeper, purple-brown shadows); a sepia bleach converts the thinnest silver first, so a short bleach gives the classic split tone. |
+| **Film handling** | Dust and hair, scratches and light leaks, each added at the stage where it happens. Dust prints white from a negative and shows dark on a slide; condensers show it sharply and diffusion heads soften it. Shallow emulsion scratches remove the top (yellow) dye layer, so they come out coloured. Leaks enter through the base and reach the red layer first, so they glow red-orange. |
 | **Paper surface** | Glossy, lustre or matte. Surface reflection sets the print's deepest black (about D-max 2.3, 2.0 and 1.6). |
 | **Borders** | A filed negative carrier (rough black rebate on a white paper margin), or a full-frame scan of the strip with ISO 35 mm perforations (4.75 mm pitch) and edge printing. Added when you develop. |
 | **Archival fading** | The finished print or slide ages for up to 80 years, in the dark or on display. Each dye fades at its own rate and leftover couplers turn the whites yellow, so old album prints go red, Ektachrome goes magenta, cine prints go pink and framed prints go cyan. For lab scans, the stored negative fades and is scanned as it is now. |
@@ -107,6 +108,11 @@ Most "film filters" are a colour lookup table and a grain overlay. **Emulsion 98
 <p align="center">
   <img src="docs/images/toning.jpg" alt="B&W paper tone and toning simulation on Ilford HP5: neutral, warm-tone and cold-tone paper; selenium toned, sepia split tone and full sepia" width="100%">
   <br><sub>B&W paper and toning: neutral, warm-tone and cold-tone paper (top); selenium, a short sepia bleach (split tone) and full sepia on warm-tone paper (bottom).</sub>
+</p>
+
+<p align="center">
+  <img src="docs/images/handling.jpg" alt="Physically based film damage: light leaks on Portra, a Superia lab scan and HP5; at 1:1, dust printing white on a Portra print, showing dark on a Velvia slide, and a base scratch under a condenser enlarger on Tri-X" width="100%">
+  <br><sub>Film handling: light leaks on a Portra print, a Superia lab scan and HP5 (top). At 1:1, the same dust prints white from a negative and shows dark on a slide; a base scratch shows under a condenser (bottom).</sub>
 </p>
 
 <p align="center">
@@ -187,6 +193,21 @@ Emulsion scatter uses a long-tailed PSF (a 4-Gaussian fit of the Frieser MTF 1/(
   - The spectral shapes are smooth approximations of these substances' known absorption behaviour, not measured toner spectra.
 - **Lab scan:** narrow-band RGB LEDs (650 / 545 / 450 nm), per-channel inversion against a grey scale, a scanner tone curve and a colour boost. Then the scanner's optics (≈ 3.5 µm blur, a 4000 dpi-class MTF) and the fixed unsharp mask minilabs apply (9 µm radius, on log luminance so it adds no colour fringes), which gives scans their crisp, grain-forward look.
 - **Viewing:** dyes are integrated under D50 (ISO 3664), or a ≈ 5400 K projector for 2383, and Bradford-adapted to the paper or base white. First-surface reflection and glare are included (0.4 % for glossy paper), which limits print blacks to a visual density of about 2.3–2.5.
+</details>
+
+<details>
+<summary><b>6b · Film handling: dust, scratches, light leaks</b></summary>
+
+- **Placement:** defects are placed in film-plane millimetres from the photo's seed, so they land in the same place in previews, 1:1 crops and full-resolution exports. Like a real print, the smallest dust is sub-pixel in small previews.
+- **Dust and hair:** a power-law size distribution (3–60 µm, mostly small) plus curved hairs 12–37 µm wide. They block light at the negative.
+  - **Negative prints and scans:** the paper or scanner gets less light there, so specks come out white.
+  - **Slides:** the viewing light is blocked, so specks show dark.
+  - **Shadow sharpness:** a condenser casts sharp, full-strength shadows; a diffusion head's light wraps around particles (about 60 % opacity, σ 10 µm); a scanner sits between.
+- **Emulsion scratches:** they run along the film's length and remove dye from the top down: first the blue-sensitive layer (yellow dye), then green, then red.
+  - **Shallow:** on a colour-negative print the line comes out yellow, because the paper's yellow layer gets more blue light. On a slide it shows blue.
+  - **Deep:** reaches the base. It prints black from a negative and shows white on a slide.
+- **Base scratches:** scatter light out of the beam. They show as white lines under a condenser and nearly vanish under diffusion light.
+- **Light leaks:** extra exposure entering from a frame edge, with the spectral response of the redscale path: through the base first, then the red, green and blue layers. That is why leaks come out red-orange on colour negative, and why their overexposed cores turn yellow in scans. Leak light goes through the film's scatter and halation like any other exposure.
 </details>
 
 <details>
@@ -295,6 +316,7 @@ swift build -c release
 .build/release/emulsion-cli develop photo.RW2 e100 out/ --print-age 40 --keeping album        # archival fading (album | framed)
 .build/release/emulsion-cli develop photo.RW2 trix400 out/ --enlarger condenser --no-falloff   # Callier effect; even illumination
 .build/release/emulsion-cli develop photo.RW2 hp5 out/ --paper-tone warm --toner sepia --toner-strength 0.3   # split tone; also --toner selenium
+.build/release/emulsion-cli develop photo.RW2 portra400 out/ --dust 0.6 --scratches 0.3 --leak 0.5   # film handling
 .build/release/emulsion-cli sheet photo.RW2 sheet.jpg                  # contact sheet of every stock
 .build/release/emulsion-cli crop photo.RW2 cinestill800t c.jpg         # 1:1 crop
 .build/release/emulsion-cli diag portra400                             # ColorChecker accuracy

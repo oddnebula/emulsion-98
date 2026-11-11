@@ -55,6 +55,15 @@ dev hp5_sepia hp5 --paper-tone warm --toner sepia --toner-strength 1
 swift scripts/contact_sheet.swift docs/images/toning.jpg 3 640 \
   "HP5 · neutral paper=$T/hp5_n.jpg" "HP5 · warm-tone paper=$T/hp5_warm.jpg" "HP5 · cold-tone paper=$T/hp5_cold.jpg" \
   "HP5 · selenium toned=$T/hp5_sel.jpg" "HP5 · sepia split tone (short bleach)=$T/hp5_split.jpg" "HP5 · full sepia, warm-tone paper=$T/hp5_sepia.jpg"
+dev p_leak portra400 --leak 0.8
+dev s_leak superia400 --leak 0.6 --scan
+dev h_leak hp5 --leak 0.7
+$B crop $IN portra400 $T/d1.jpg --size 520 --cx 0.3 --cy 0.3 --dust 1 --scratches 0.8 >/dev/null
+$B crop $IN velvia50 $T/d2.jpg --size 520 --cx 0.3 --cy 0.3 --dust 1 --scratches 0.8 >/dev/null
+$B crop $IN trix400 $T/d3.jpg --size 520 --cx 0.3 --cy 0.3 --dust 1 --scratches 0.8 --enlarger condenser >/dev/null
+swift scripts/contact_sheet.swift docs/images/handling.jpg 3 640 \
+  "Portra · light leak=$T/p_leak.jpg" "Superia lab scan · light leak=$T/s_leak.jpg" "HP5 · light leak=$T/h_leak.jpg" \
+  "Portra print 1:1 · dust prints white=$T/d1.jpg" "Velvia slide 1:1 · dust shows dark=$T/d2.jpg" "Tri-X condenser 1:1 · base scratch=$T/d3.jpg"
 # 1:1 grain and halation
 $B crop $IN cinestill800t $T/halo.jpg --size 520 --cx 0.61 --cy 0.26 >/dev/null
 $B crop $IN portra800 $T/g1.jpg --size 520 --cx 0.80 --cy 0.42 >/dev/null

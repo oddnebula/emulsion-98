@@ -89,6 +89,8 @@ struct GetInfoBox: View {
         if lib.stock.kind == .blackWhite && s.toner != .none && s.tonerStrength >= 0.01 {
             dev.append(String(format: "%@ toned %.0f%%", s.toner == .sepia ? "sepia" : "selenium", s.tonerStrength * 100))
         }
+        let handling = [(s.dust, "dust"), (s.scratches, "scratches"), (s.lightLeak, "light leak")].filter { $0.0 >= 0.01 }
+        if !handling.isEmpty { dev.append(handling.map { String(format: "%@ %.0f%%", $0.1, $0.0 * 100) }.joined(separator: ", ")) }
         if s.printAge >= 0.5 { dev.append(String(format: "%.0f years old, %@", s.printAge, s.keeping.label.lowercased())) }
         r.append(("Development:", dev.joined(separator: " · ")))
         return r

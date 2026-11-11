@@ -83,10 +83,14 @@ public struct DevelopSettings: Codable, Equatable {
     public var paperTone: PaperTone = .neutral
     public var toner: Toner = .none
     public var tonerStrength: Float = 0.6
+    /// Film handling (0…1): dust and hair, scratches, light leak.
+    public var dust: Float = 0
+    public var scratches: Float = 0
+    public var lightLeak: Float = 0
     public init() {}
 
     // Tolerant decoding: settings saved by older versions keep working when fields are added.
-    enum CodingKeys: String, CodingKey { case exposure, push, grain, halation, format, sceneLight, labCorrection, reciprocity, lab, agitation, ageYears, storage, filter, crossProcess, redscale, ccYellow, ccMagenta, printExposure, preflash, paperGrade, paperSurface, border, printAge, keeping, enlarger, enlargerFalloff, paperTone, toner, tonerStrength }
+    enum CodingKeys: String, CodingKey { case exposure, push, grain, halation, format, sceneLight, labCorrection, reciprocity, lab, agitation, ageYears, storage, filter, crossProcess, redscale, ccYellow, ccMagenta, printExposure, preflash, paperGrade, paperSurface, border, printAge, keeping, enlarger, enlargerFalloff, paperTone, toner, tonerStrength, dust, scratches, lightLeak }
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         exposure = try c.decodeIfPresent(Float.self, forKey: .exposure) ?? 0
@@ -118,6 +122,9 @@ public struct DevelopSettings: Codable, Equatable {
         paperTone = try c.decodeIfPresent(PaperTone.self, forKey: .paperTone) ?? .neutral
         toner = try c.decodeIfPresent(Toner.self, forKey: .toner) ?? .none
         tonerStrength = try c.decodeIfPresent(Float.self, forKey: .tonerStrength) ?? 0.6
+        dust = try c.decodeIfPresent(Float.self, forKey: .dust) ?? 0
+        scratches = try c.decodeIfPresent(Float.self, forKey: .scratches) ?? 0
+        lightLeak = try c.decodeIfPresent(Float.self, forKey: .lightLeak) ?? 0
     }
 }
 
@@ -258,6 +265,17 @@ public enum Developer {
             r = max(e.x, 1e-7); g = max(e.y, 1e-7); b = max(e.z, 1e-7)
         }
 
+        // 1b. Light leak: light entering through the camera back, along the redscale path (base first).
+        let geom = FrameGeometry(w: w, h: h, pixelUm: pixelUm, context: context)
+        if !context.uniform, let leak = Handling.lightLeak(geom, amount: settings.lightLeak, seed: context.seed) {
+            let white = model.table(kelvin: nil, filter: .none, redscale: true).exposure(1, 1, 1)
+            let v = white / max(white.max(), 1e-9) * midGrey
+            for i in 0..<(w * h) {
+                R[i] += leak[i] * v.x
+                G[i] += leak[i] * v.y; B[i] += leak[i] * v.z
+            }
+        }
+
         // 2. Light scatter inside the emulsion. Light reaches the bottom (red) layer through the others,
         //    so the red record is softest and the top (blue) record sharpest.
         //    The photo already carries the camera's blur, so each scatter lobe adds only what it has beyond it.
@@ -330,6 +348,21 @@ public enum Developer {
             }
         }
 
+        // 7b. Handling damage on the processed film.
+        let dustLight: DustLight = stock.kind == .slide ? .viewing : scanner != nil ? .scanner
+            : (isBW && settings.enlarger == .condenser) ? .condenser : .diffusion
+        let defects = context.uniform ? Handling.Defects()
+            : Handling.defects(geom, dust: settings.dust, scratches: settings.scratches, seed: context.seed, light: dustLight)
+        if let depth = defects.scratchDepth {
+            // Emulsion scratches remove dye from the top layer (blue-sensitive) down.
+            for i in 0..<(w * h) where depth[i] > 0 {
+                let dd = depth[i]
+                let top = 1 - min(dd, 1), mid = 1 - min(max(dd - 0.8, 0), 1), bottom = 1 - min(max(dd - 1.6, 0), 1)
+                if isBW { R[i] *= 1 - min(dd / 2.2, 1) }
+                else { B[i] *= top; G[i] *= mid; R[i] *= bottom }
+            }
+        }
+
         // 8. Printing (negatives) / viewing (slides): spectral dyes -> paper -> D65 viewing.
         if scanner == nil && stock.kind != .slide {
             let bwTone = isBW ? BWTone.cached(settings, flare: FilmModel.paperFlare) : nil
@@ -346,7 +379,7 @@ public enum Developer {
             if !context.uniform {
                 EnlargerOptics.apply(&R, &G, &B, w: w, h: h, mono: isBW, pixelUm: pixelUm, format: settings.format,
                                      context: context, falloff: settings.enlargerFalloff, lens: context.printOptics,
-                                     already: excessPx)
+                                     already: excessPx, transmission: defects.transmission)
             }
             map3(&R, &G, &B) { r, g, b in
                 var c = model.renderPrint(SIMD3(r, g, b), balance: balance, neutral: neutral, flash: flash, bwKp: bwKp, fade: fade,
@@ -355,10 +388,14 @@ public enum Developer {
                 r = c.x; g = c.y; b = c.z
             }
         } else {
-        map3(&R, &G, &B) { r, g, b in
-            var c = scanner?.render(SIMD3(r, g, b), balance: scanBal, fade: fade)
+        // Dust in the scanner: blocked light reads as extra density on the negative (prints white).
+        let scanDust = scanner != nil ? defects.transmission?.map { -log10(max($0, 0.02)) } : nil
+        map3i(&R, &G, &B) { i, r, g, b in
+            var c = scanner?.render(SIMD3(r, g, b), balance: scanBal + SIMD3(repeating: scanDust?[i] ?? 0), fade: fade)
                 ?? model.render(SIMD3(r, isBW ? r : g, isBW ? r : b), balance: balance, neutral: neutral, flash: flash, bwKp: bwKp, fade: fade)
             if !isBW { c = model.profile(c) }
+            // Slides are seen directly: dust blocks the viewing light.
+            if stock.kind == .slide, let t = defects.transmission { c *= t[i] }
             r = c.x; g = c.y; b = c.z
         }
         }
@@ -540,6 +577,21 @@ public enum Developer {
     }
 
     /// Parallel per-pixel map over three planes.
+    static func map3i(_ r: inout [Float], _ g: inout [Float], _ b: inout [Float], _ f: (Int, inout Float, inout Float, inout Float) -> Void) {
+        let n = r.count
+        r.withUnsafeMutableBufferPointer { rp in
+        g.withUnsafeMutableBufferPointer { gp in
+        b.withUnsafeMutableBufferPointer { bp in
+            let R = rp.baseAddress!, G = gp.baseAddress!, B = bp.baseAddress!
+            Parallel.rows((n + 4095) / 4096) { blocks in
+                for blk in blocks {
+                    let a = blk * 4096, e = min(n, a + 4096)
+                    for i in a..<e { f(i, &R[i], &G[i], &B[i]) }
+                }
+            }
+        }}}
+    }
+
     static func map3(_ r: inout [Float], _ g: inout [Float], _ b: inout [Float], _ f: (inout Float, inout Float, inout Float) -> Void) {
         let n = r.count
         r.withUnsafeMutableBufferPointer { rp in

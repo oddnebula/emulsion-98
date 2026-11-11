@@ -404,6 +404,18 @@ struct Inspector: View {
                         PlatinumPopup(title: "Kept:", selection: $lib.settings.keeping,
                                       options: Keeping.allCases.map { ($0, $0.label) })
                     }
+                    PlatinumSlider(title: "Dust & hair", value: $lib.settings.dust, range: 0...1, defaultValue: 0) {
+                        $0 < 0.01 ? "Clean" : String(format: "%.0f%%", $0 * 100)
+                    }
+                    .balloon("Dust and hair on the developed film. They block light, so on a print from a negative they come out white; on a slide they are dark. A condenser enlarger shows every speck; a diffusion head softens them.")
+                    PlatinumSlider(title: "Scratches", value: $lib.settings.scratches, range: 0...1, defaultValue: 0) {
+                        $0 < 0.01 ? "None" : String(format: "%.0f%%", $0 * 100)
+                    }
+                    .balloon("Scratches along the film. A shallow emulsion scratch removes only the top, yellow-dye layer, so it shows as a coloured line; a deep one reaches the base. Base-side scratches scatter light and show mostly under a condenser.")
+                    PlatinumSlider(title: "Light leak", value: $lib.settings.lightLeak, range: 0...1, defaultValue: 0) {
+                        $0 < 0.01 ? "None" : String(format: "%.0f%%", $0 * 100)
+                    }
+                    .balloon("Light leak. Light gets in through the camera back, crosses the film base and reaches the red-sensitive layer first, which is why leaks glow red and orange.")
                     PlatinumPopup(title: "Format:", selection: $lib.settings.format,
                                   options: FilmFormat.allCases.map { ($0, $0.label) })
                     PlatinumPopup(title: "Border:", selection: $lib.settings.border,
