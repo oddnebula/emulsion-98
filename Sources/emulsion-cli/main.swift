@@ -43,6 +43,9 @@ if let v = opt("--surface"), let b = PaperSurface(rawValue: v) { settings.paperS
 if let v = opt("--print-age").flatMap(Float.init) { settings.printAge = v }
 if let v = opt("--keeping"), let k = Keeping(rawValue: v) { settings.keeping = k }
 if let v = opt("--enlarger"), let k = Enlarger(rawValue: v) { settings.enlarger = k }
+if let v = opt("--paper-tone"), let k = PaperTone(rawValue: v) { settings.paperTone = k }
+if let v = opt("--toner"), let k = Toner(rawValue: v) { settings.toner = k }
+if let v = opt("--toner-strength").flatMap(Float.init) { settings.tonerStrength = v }
 if args.contains("--no-falloff") { settings.enlargerFalloff = false; args.removeAll { $0 == "--no-falloff" } }
 let kelvinOpt = opt("--kelvin").flatMap(Float.init)
 let timeOpt = opt("--time").flatMap(Double.init)

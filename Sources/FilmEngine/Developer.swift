@@ -79,10 +79,14 @@ public struct DevelopSettings: Codable, Equatable {
     /// Optical prints: enlarger light source (B&W: Callier effect) and the enlarging lens's corner falloff.
     public var enlarger: Enlarger = .diffusion
     public var enlargerFalloff = true
+    /// B&W prints: paper image tone, toner and how far the toning has gone (0…1).
+    public var paperTone: PaperTone = .neutral
+    public var toner: Toner = .none
+    public var tonerStrength: Float = 0.6
     public init() {}
 
     // Tolerant decoding: settings saved by older versions keep working when fields are added.
-    enum CodingKeys: String, CodingKey { case exposure, push, grain, halation, format, sceneLight, labCorrection, reciprocity, lab, agitation, ageYears, storage, filter, crossProcess, redscale, ccYellow, ccMagenta, printExposure, preflash, paperGrade, paperSurface, border, printAge, keeping, enlarger, enlargerFalloff }
+    enum CodingKeys: String, CodingKey { case exposure, push, grain, halation, format, sceneLight, labCorrection, reciprocity, lab, agitation, ageYears, storage, filter, crossProcess, redscale, ccYellow, ccMagenta, printExposure, preflash, paperGrade, paperSurface, border, printAge, keeping, enlarger, enlargerFalloff, paperTone, toner, tonerStrength }
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         exposure = try c.decodeIfPresent(Float.self, forKey: .exposure) ?? 0
@@ -111,6 +115,9 @@ public struct DevelopSettings: Codable, Equatable {
         keeping = try c.decodeIfPresent(Keeping.self, forKey: .keeping) ?? .album
         enlarger = try c.decodeIfPresent(Enlarger.self, forKey: .enlarger) ?? .diffusion
         enlargerFalloff = try c.decodeIfPresent(Bool.self, forKey: .enlargerFalloff) ?? true
+        paperTone = try c.decodeIfPresent(PaperTone.self, forKey: .paperTone) ?? .neutral
+        toner = try c.decodeIfPresent(Toner.self, forKey: .toner) ?? .none
+        tonerStrength = try c.decodeIfPresent(Float.self, forKey: .tonerStrength) ?? 0.6
     }
 }
 
@@ -313,6 +320,7 @@ public enum Developer {
 
         // 8. Printing (negatives) / viewing (slides): spectral dyes -> paper -> D65 viewing.
         if scanner == nil && stock.kind != .slide {
+            let bwTone = isBW ? BWTone.cached(settings, flare: FilmModel.paperFlare) : nil
             // Optical print: the light through the negative at the paper (log10 exposure per paper layer),
             // then the enlarger's lens and falloff act on it, then the paper develops.
             map3(&R, &G, &B) { r, g, b in
@@ -328,7 +336,8 @@ public enum Developer {
                                      context: context, falloff: settings.enlargerFalloff)
             }
             map3(&R, &G, &B) { r, g, b in
-                var c = model.renderPrint(SIMD3(r, g, b), balance: balance, neutral: neutral, flash: flash, bwKp: bwKp, fade: fade)
+                var c = model.renderPrint(SIMD3(r, g, b), balance: balance, neutral: neutral, flash: flash, bwKp: bwKp, fade: fade,
+                                          tone: bwTone)
                 if !isBW { c = model.profile(c) }
                 r = c.x; g = c.y; b = c.z
             }

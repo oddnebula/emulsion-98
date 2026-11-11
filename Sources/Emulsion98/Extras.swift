@@ -85,6 +85,10 @@ struct GetInfoBox: View {
         if s.preflash >= 0.01 { dev.append(String(format: "pre-flash %.0f%%", s.preflash * 100)) }
         if s.ageYears >= 0.5 { dev.append(String(format: "%.0f years expired (%@)", s.ageYears, s.storage.label.lowercased())) }
         if lib.stock.kind == .blackWhite && s.enlarger == .condenser { dev.append("condenser enlarger") }
+        if lib.stock.kind == .blackWhite && s.paperTone != .neutral { dev.append(s.paperTone == .warm ? "warm-tone paper" : "cold-tone paper") }
+        if lib.stock.kind == .blackWhite && s.toner != .none && s.tonerStrength >= 0.01 {
+            dev.append(String(format: "%@ toned %.0f%%", s.toner == .sepia ? "sepia" : "selenium", s.tonerStrength * 100))
+        }
         if s.printAge >= 0.5 { dev.append(String(format: "%.0f years old, %@", s.printAge, s.keeping.label.lowercased())) }
         r.append(("Development:", dev.joined(separator: " · ")))
         return r

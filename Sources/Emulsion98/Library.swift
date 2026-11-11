@@ -367,7 +367,9 @@ final class Library: ObservableObject {
                                                         "printExposure": "\(settings.printExposure)", "preflash": "\(settings.preflash)",
                                                         "paperGrade": "\(settings.paperGrade)", "paperSurface": settings.paperSurface.rawValue,
                                                         "printAge": "\(settings.printAge)", "keeping": settings.keeping.rawValue,
-                                                        "enlarger": settings.enlarger.rawValue, "falloff": "\(settings.enlargerFalloff)"])) ?? Data()
+                                                        "enlarger": settings.enlarger.rawValue, "falloff": "\(settings.enlargerFalloff)",
+                                                        "paperTone": settings.paperTone.rawValue, "toner": settings.toner.rawValue,
+                                                        "tonerStrength": "\(settings.tonerStrength)"])) ?? Data()
             for p in list {
                 status = "Developing \(p.name) in \(stock.displayName)… (\(done + 1) of \(list.count))"
                 let base = p.url.deletingPathExtension().lastPathComponent

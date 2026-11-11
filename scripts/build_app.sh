@@ -39,8 +39,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
   <key>CFBundleExecutable</key><string>Emulsion98</string>
   <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>1.5.0</string>
-  <key>CFBundleVersion</key><string>6</string>
+  <key>CFBundleShortVersionString</key><string>1.6.0</string>
+  <key>CFBundleVersion</key><string>7</string>
   <key>LSMinimumSystemVersion</key><string>15.0</string>
   <key>LSApplicationCategoryType</key><string>public.app-category.photography</string>
   <key>NSHighResolutionCapable</key><true/>
@@ -69,8 +69,8 @@ cat > "$EXT/Contents/Info.plist" <<'PLIST'
   <key>CFBundleIdentifier</key><string>local.emulsion98.app.photos-editing</string>
   <key>CFBundleExecutable</key><string>Emulsion98PhotosExt</string>
   <key>CFBundlePackageType</key><string>XPC!</string>
-  <key>CFBundleShortVersionString</key><string>1.5.0</string>
-  <key>CFBundleVersion</key><string>6</string>
+  <key>CFBundleShortVersionString</key><string>1.6.0</string>
+  <key>CFBundleVersion</key><string>7</string>
   <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
   <key>LSMinimumSystemVersion</key><string>15.0</string>
   <key>NSHumanReadableCopyright</key><string>Film emulation for Photos</string>

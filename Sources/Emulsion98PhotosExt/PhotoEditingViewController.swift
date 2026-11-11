@@ -127,7 +127,8 @@ final class ExtModel: ObservableObject {
                                     "ccYellow": "\(s.ccYellow)", "ccMagenta": "\(s.ccMagenta)", "printExposure": "\(s.printExposure)",
                                     "preflash": "\(s.preflash)", "paperGrade": "\(s.paperGrade)", "paperSurface": s.paperSurface.rawValue,
                                     "printAge": "\(s.printAge)", "keeping": s.keeping.rawValue,
-                                    "enlarger": s.enlarger.rawValue, "falloff": "\(s.enlargerFalloff)"])) ?? Data()
+                                    "enlarger": s.enlarger.rawValue, "falloff": "\(s.enlargerFalloff)",
+                                    "paperTone": s.paperTone.rawValue, "toner": s.toner.rawValue, "tonerStrength": "\(s.tonerStrength)"])) ?? Data()
     }
 
     func restore(_ data: Data) {
@@ -157,6 +158,9 @@ final class ExtModel: ObservableObject {
         if let v = d["keeping"].flatMap(Keeping.init(rawValue:)) { s.keeping = v }
         if let v = d["enlarger"].flatMap(Enlarger.init(rawValue:)) { s.enlarger = v }
         if let v = d["falloff"] { s.enlargerFalloff = v == "true" }
+        if let v = d["paperTone"].flatMap(PaperTone.init(rawValue:)) { s.paperTone = v }
+        if let v = d["toner"].flatMap(Toner.init(rawValue:)) { s.toner = v }
+        if let v = d["tonerStrength"].flatMap(Float.init) { s.tonerStrength = v }
         settings = s
         if let id = d["stock"], FilmStock.stock(id: id) != nil { stockID = id }
     }

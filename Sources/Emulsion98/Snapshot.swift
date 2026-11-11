@@ -155,6 +155,15 @@ extension Snapshot {
         retro.showAbout = false
         save("startup", 1000, 620, StartupScreenStatic())
         save("banner", 1280, 320, ReadmeBanner())
+        // Inspector panels with every control showing (for checking layout; not used in the README).
+        func inspector(_ name: String) {
+            save(name, 262, 1700, Inspector(scrolls: false).frame(maxHeight: .infinity, alignment: .top).background(Plat.face))
+        }
+        lib.settings.printAge = 30; lib.settings.ageYears = 5
+        inspector("inspector-colour")
+        lib.stockID = "trix400"
+        lib.settings = DevelopSettings(); lib.settings.toner = .sepia; lib.settings.enlarger = .condenser; lib.settings.printAge = 20
+        inspector("inspector-bw")
     }
 }
 

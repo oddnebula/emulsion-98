@@ -46,6 +46,15 @@ dev kchrome_album kodachrome64 --print-age 50
 swift scripts/contact_sheet.swift docs/images/fading.jpg 3 640 \
   "Portra · new print=$T/portra400.jpg" "Portra · 40 years in an album=$T/portra_album.jpg" "Portra · 40 years framed=$T/portra_framed.jpg" \
   "Ektachrome · 40 years in a box=$T/e100_album.jpg" "Kodachrome · 50 years in a box=$T/kchrome_album.jpg" "Vision3 cine print · 50 years=$T/vision_album.jpg"
+dev hp5_n hp5
+dev hp5_warm hp5 --paper-tone warm
+dev hp5_cold hp5 --paper-tone cold
+dev hp5_sel hp5 --toner selenium --toner-strength 1
+dev hp5_split hp5 --toner sepia --toner-strength 0.3
+dev hp5_sepia hp5 --paper-tone warm --toner sepia --toner-strength 1
+swift scripts/contact_sheet.swift docs/images/toning.jpg 3 640 \
+  "HP5 · neutral paper=$T/hp5_n.jpg" "HP5 · warm-tone paper=$T/hp5_warm.jpg" "HP5 · cold-tone paper=$T/hp5_cold.jpg" \
+  "HP5 · selenium toned=$T/hp5_sel.jpg" "HP5 · sepia split tone (short bleach)=$T/hp5_split.jpg" "HP5 · full sepia, warm-tone paper=$T/hp5_sepia.jpg"
 # 1:1 grain and halation
 $B crop $IN cinestill800t $T/halo.jpg --size 520 --cx 0.61 --cy 0.26 >/dev/null
 $B crop $IN portra800 $T/g1.jpg --size 520 --cx 0.80 --cy 0.42 >/dev/null

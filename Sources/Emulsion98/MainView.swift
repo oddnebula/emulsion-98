@@ -452,6 +452,16 @@ struct Inspector: View {
                         }
                         .balloon("Pre-flash. A faint, even exposure of the paper before printing, so the brightest highlight detail of a dense negative prints instead of staying paper-white.")
                         if lib.stock.kind == .blackWhite {
+                            PlatinumPopup(title: "Image tone:", selection: $lib.settings.paperTone,
+                                          options: PaperTone.allCases.map { ($0, $0.label) })
+                                .balloon("Paper image tone. Warm-tone papers develop finer silver, which absorbs more blue light (brown-black, on a cream base); cold-tone papers give a blue-black.")
+                            PlatinumPopup(title: "Toner:", selection: $lib.settings.toner,
+                                          options: Toner.allCases.map { ($0, $0.label) })
+                                .balloon("Toning. Selenium converts the densest silver first: deeper, slightly purple-brown shadows. Sepia bleaches the thinnest silver first and redevelops it as brown silver sulfide; a short bleach browns only the highlights (split tone).")
+                            if lib.settings.toner != .none {
+                                PlatinumSlider(title: lib.settings.toner == .sepia ? "Bleach" : "Toning time", value: $lib.settings.tonerStrength,
+                                               range: 0...1, defaultValue: 0.6) { String(format: "%.0f%%", $0 * 100) }
+                            }
                             PlatinumPopup(title: "Enlarger:", selection: $lib.settings.enlarger,
                                           options: Enlarger.allCases.map { ($0, $0.label) })
                                 .balloon("Enlarger light. A condenser's focused light is scattered away by the silver grains (the Callier effect), so the negative prints denser where it has more silver: about a grade harder, with crisper grain. A diffusion head is gentler.")

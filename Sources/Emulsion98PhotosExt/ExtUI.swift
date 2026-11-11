@@ -118,6 +118,12 @@ struct ExtRoot: View {
                             $0 < 0.01 ? "Off" : String(format: "%.0f%%", $0 * 100)
                         }
                         if m.stock.kind == .blackWhite {
+                            PlatinumPopup(title: "Image tone:", selection: $m.settings.paperTone, options: PaperTone.allCases.map { ($0, $0.label) })
+                            PlatinumPopup(title: "Toner:", selection: $m.settings.toner, options: Toner.allCases.map { ($0, $0.label) })
+                            if m.settings.toner != .none {
+                                PlatinumSlider(title: m.settings.toner == .sepia ? "Bleach" : "Toning time", value: $m.settings.tonerStrength,
+                                               range: 0...1, defaultValue: 0.6) { String(format: "%.0f%%", $0 * 100) }
+                            }
                             PlatinumPopup(title: "Enlarger:", selection: $m.settings.enlarger, options: Enlarger.allCases.map { ($0, $0.label) })
                         }
                         if m.settings.lab == .print || m.stock.kind == .blackWhite {

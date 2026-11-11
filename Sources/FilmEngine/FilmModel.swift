@@ -367,7 +367,7 @@ final class FilmModel {
     /// `negToPrint` of the negative densities, for B&W minus the (effective printing) density. Splitting
     /// here lets the enlarger's optics act on the light at the paper.
     @inline(__always) func renderPrint(_ lp0: SIMD3<Float>, balance: SIMD3<Float>, neutral n: Neutralizer = .identity,
-                                       flash: Float = 0, bwKp: Float = 0, fade: Fade? = nil) -> SIMD3<Float> {
+                                       flash: Float = 0, bwKp: Float = 0, fade: Fade? = nil, tone: BWTone? = nil) -> SIMD3<Float> {
         switch stock.kind {
         case .colorNegative:
             var lp = lp0
@@ -396,7 +396,7 @@ final class FilmModel {
             if flash > 0 { lp = log10(pow(10, lp) + flash * pow(10, Developer.logit(Developer.midGreyDensity / range) / kp)) }
             var dp = range * Developer.logistic(kp * lp)
             if let f = fade { dp = f.silver(dp) }
-            let v = SIMD3(repeating: (1 - Self.paperFlare) * pow(10, -dp) + Self.paperFlare)
+            let v = tone?.sample(dp) ?? SIMD3(repeating: (1 - Self.paperFlare) * pow(10, -dp) + Self.paperFlare)
             return fade.map { v * $0.silverTint } ?? v
         }
     }
