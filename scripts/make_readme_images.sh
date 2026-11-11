@@ -72,6 +72,13 @@ dev v_tung velvia50 --view tungsten
 swift scripts/contact_sheet.swift docs/images/viewing.jpg 3 640 \
   "Portra print · viewing booth (D50)=$T/portra400.jpg" "Portra print · tungsten lamp=$T/p_tung.jpg" "Portra print · warm LED bulb=$T/p_led.jpg" \
   "Portra print · candlelight=$T/p_candle.jpg" "Velvia · slide projector=$T/v_proj.jpg" "Velvia · held up to a tungsten lamp=$T/v_tung.jpg"
+# double exposures (second frame: the same CC0 photo mirrored / upside down)
+sips -f horizontal $IN --out $T/mirror.jpg >/dev/null; sips -r 180 $IN --out $T/rot.jpg >/dev/null
+dev de_m portra400 --double $T/mirror.jpg
+dev de_r portra400 --double $T/rot.jpg
+dev de_h hp5 --double $T/rot.jpg
+swift scripts/contact_sheet.swift docs/images/double.jpg 3 640 \
+  "Portra · double exposure (mirrored frame)=$T/de_m.jpg" "Portra · second frame upside down=$T/de_r.jpg" "HP5 · same=$T/de_h.jpg"
 # 1:1 grain and halation
 $B crop $IN cinestill800t $T/halo.jpg --size 520 --cx 0.61 --cy 0.26 >/dev/null
 $B crop $IN portra800 $T/g1.jpg --size 520 --cx 0.80 --cy 0.42 >/dev/null

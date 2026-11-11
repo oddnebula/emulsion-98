@@ -89,10 +89,14 @@ public struct DevelopSettings: Codable, Equatable {
     public var lightLeak: Float = 0
     /// The light the finished print / slide is looked at under (not used for lab scans).
     public var viewing: ViewingLight = .standard
+    /// Multiple exposure: the second frame's exposure relative to the first (stops), and whether each frame
+    /// was given one stop less, as photographers do so the sum prints normally.
+    public var secondEV: Float = 0
+    public var multiCompensate = true
     public init() {}
 
     // Tolerant decoding: settings saved by older versions keep working when fields are added.
-    enum CodingKeys: String, CodingKey { case exposure, push, grain, halation, format, sceneLight, labCorrection, reciprocity, lab, agitation, ageYears, storage, filter, crossProcess, redscale, ccYellow, ccMagenta, printExposure, preflash, paperGrade, paperSurface, border, printAge, keeping, enlarger, enlargerFalloff, paperTone, toner, tonerStrength, dust, scratches, lightLeak, viewing }
+    enum CodingKeys: String, CodingKey { case exposure, push, grain, halation, format, sceneLight, labCorrection, reciprocity, lab, agitation, ageYears, storage, filter, crossProcess, redscale, ccYellow, ccMagenta, printExposure, preflash, paperGrade, paperSurface, border, printAge, keeping, enlarger, enlargerFalloff, paperTone, toner, tonerStrength, dust, scratches, lightLeak, viewing, secondEV, multiCompensate }
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         exposure = try c.decodeIfPresent(Float.self, forKey: .exposure) ?? 0
@@ -128,6 +132,8 @@ public struct DevelopSettings: Codable, Equatable {
         scratches = try c.decodeIfPresent(Float.self, forKey: .scratches) ?? 0
         lightLeak = try c.decodeIfPresent(Float.self, forKey: .lightLeak) ?? 0
         viewing = try c.decodeIfPresent(ViewingLight.self, forKey: .viewing) ?? .standard
+        secondEV = try c.decodeIfPresent(Float.self, forKey: .secondEV) ?? 0
+        multiCompensate = try c.decodeIfPresent(Bool.self, forKey: .multiCompensate) ?? true
     }
 }
 
@@ -159,12 +165,26 @@ public struct DevelopContext {
     public var captureBlurPx: Float = 0.55
     /// Include the print / scan optics (enlarger lens, scanner). Off for film-only MTF measurement.
     public var printOptics = true
+    /// A second exposure on the same frame (multiple exposure), registered to this buffer.
+    public var second: SecondExposure? = nil
 
     public init(fullLongSide: Int, originX: Int = 0, originY: Int = 0, seed: UInt32 = 1,
                 isDisplayReferred: Bool = false, sceneKelvin: Float? = nil, clipLevel: Float? = nil) {
         self.fullLongSide = fullLongSide; self.originX = originX; self.originY = originY
         self.seed = seed; self.isDisplayReferred = isDisplayReferred
         self.sceneKelvin = sceneKelvin; self.clipLevel = clipLevel
+    }
+}
+
+/// The second frame of a double exposure: scene light from another photo, already registered (same size and
+/// region) to the buffer being developed.
+public struct SecondExposure {
+    public var image: RGBImage
+    public var isDisplayReferred: Bool
+    /// Its own scene light (each exposure keeps its own colour temperature on the film).
+    public var sceneKelvin: Float?
+    public init(image: RGBImage, isDisplayReferred: Bool, sceneKelvin: Float?) {
+        self.image = image; self.isDisplayReferred = isDisplayReferred; self.sceneKelvin = sceneKelvin
     }
 }
 
@@ -255,7 +275,10 @@ public enum Developer {
 
         // 1. Camera light -> spectral reconstruction -> exposure of each film layer.
         var R = img.r, G = img.g, B = img.b
-        let gain = pow(2, filmEV)
+        // Multiple exposure: each frame usually gets one stop less so their sum prints at normal density.
+        let second = context.uniform ? nil : context.second.flatMap { $0.image.width == w && $0.image.height == h ? $0 : nil }
+        let split: Float = second != nil && settings.multiCompensate ? 0.5 : 1
+        let gain = pow(2, filmEV) * split
         let derender = context.isDisplayReferred
         map3(&R, &G, &B) { r, g, b in
             var rr = r, gg = g, bb = b
@@ -266,6 +289,25 @@ public enum Developer {
             }
             let e = table.exposure(rr * gain, gg * gain, bb * gain)
             r = max(e.x, 1e-7); g = max(e.y, 1e-7); b = max(e.z, 1e-7)
+        }
+        if let s2 = second {
+            // The second frame exposes the same emulsion: its layer exposures *add* to the first's (latent
+            // images sum as light), through its own scene light — not a blend of two pictures.
+            let t2 = model.table(kelvin: settings.sceneLight ? s2.sceneKelvin : nil, filter: settings.filter, redscale: redscale)
+            let g2 = pow(2, filmEV + settings.secondEV) * split
+            var R2 = s2.image.r, G2 = s2.image.g, B2 = s2.image.b
+            let dr = s2.isDisplayReferred
+            map3(&R2, &G2, &B2) { r, g, b in
+                var rr = r, gg = g, bb = b
+                if dr {
+                    rr = midGrey * pow(max(rr, 0) / midGrey, 0.8)
+                    gg = midGrey * pow(max(gg, 0) / midGrey, 0.8)
+                    bb = midGrey * pow(max(bb, 0) / midGrey, 0.8)
+                }
+                let e = t2.exposure(rr * g2, gg * g2, bb * g2)
+                r = max(e.x, 0); g = max(e.y, 0); b = max(e.z, 0)
+            }
+            for i in 0..<(w * h) { R[i] += R2[i]; G[i] += G2[i]; B[i] += B2[i] }
         }
 
         // 1b. Light leak: light entering through the camera back, along the redscale path (base first).

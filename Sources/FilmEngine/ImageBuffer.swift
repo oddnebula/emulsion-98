@@ -268,3 +268,33 @@ enum Noise {
         return out
     }
 }
+
+extension RGBImage {
+    /// Resampled to exactly `w`×`h`, scaled to fill and centre-cropped (aspect preserved), bilinear after an
+    /// area pre-reduction. Used to register a second exposure on the first frame.
+    public func filled(width w: Int, height h: Int) -> RGBImage {
+        if width == w && height == h { return self }
+        let scale = max(Float(w) / Float(width), Float(h) / Float(height))
+        var src = self
+        let reduce = Int((1 / scale).rounded(.down))
+        if reduce >= 2 { src = downscaled(toLongSide: max(longSide / reduce, 1)) }
+        let s = max(Float(w) / Float(src.width), Float(h) / Float(src.height))
+        let ox = (Float(src.width) * s - Float(w)) / 2, oy = (Float(src.height) * s - Float(h)) / 2
+        var out = RGBImage(width: w, height: h)
+        for y in 0..<h {
+            let fy = min(max((Float(y) + 0.5 + oy) / s - 0.5, 0), Float(src.height - 1))
+            let y0 = Int(fy), y1 = min(y0 + 1, src.height - 1), ty = fy - Float(y0)
+            for x in 0..<w {
+                let fx = min(max((Float(x) + 0.5 + ox) / s - 0.5, 0), Float(src.width - 1))
+                let x0 = Int(fx), x1 = min(x0 + 1, src.width - 1), tx = fx - Float(x0)
+                let i00 = y0 * src.width + x0, i01 = y0 * src.width + x1, i10 = y1 * src.width + x0, i11 = y1 * src.width + x1
+                func bl(_ p: [Float]) -> Float {
+                    (p[i00] * (1 - tx) + p[i01] * tx) * (1 - ty) + (p[i10] * (1 - tx) + p[i11] * tx) * ty
+                }
+                let o = y * w + x
+                out.r[o] = bl(src.r); out.g[o] = bl(src.g); out.b[o] = bl(src.b)
+            }
+        }
+        return out
+    }
+}

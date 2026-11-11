@@ -90,6 +90,7 @@ Most "film filters" are a colour lookup table and a grain overlay. **Emulsion 98
 | **Paper tone & toning (B&W)** | Neutral, warm-tone (cream base) or cold-tone paper, and selenium or sepia toning, rendered spectrally. Selenium converts the densest silver first (deeper, purple-brown shadows); a sepia bleach converts the thinnest silver first, so a short bleach gives the classic split tone. |
 | **Film handling** | Dust and hair, scratches and light leaks, each added at the stage where it happens. Dust prints white from a negative and shows dark on a slide; condensers show it sharply and diffusion heads soften it. Shallow emulsion scratches remove the top (yellow) dye layer, so they come out coloured. Leaks enter through the base and reach the red layer first, so they glow red-orange. |
 | **Viewing light** | A viewing booth, daylight, a tungsten lamp, a warm LED bulb or candlelight, and a projector for slides. The dyes are integrated under the light's spectrum, so colours shift against each other (metamerism), and the eye adapts only partly (CIECAM02-style), so a print under a lamp stays warm. |
+| **Multiple exposure** | A second photo exposes the same frame. The two frames' light adds in each emulsion layer before development, each through its own scene light, so it isn't a blend: dark areas of one let the other show through, bright areas dominate, and highlights pile up into the film's shoulder. Each frame gets −1 stop by default, as in the camera. |
 | **Paper surface** | Glossy, lustre or matte. Surface reflection sets the print's deepest black (about D-max 2.3, 2.0 and 1.6). |
 | **Borders** | A filed negative carrier (rough black rebate on a white paper margin), or a full-frame scan of the strip with ISO 35 mm perforations (4.75 mm pitch) and edge printing. Added when you develop. |
 | **Archival fading** | The finished print or slide ages for up to 80 years, in the dark or on display. Each dye fades at its own rate and leftover couplers turn the whites yellow, so old album prints go red, Ektachrome goes magenta, cine prints go pink and framed prints go cyan. For lab scans, the stored negative fades and is scanned as it is now. |
@@ -119,6 +120,11 @@ Most "film filters" are a colour lookup table and a grain overlay. **Emulsion 98
 <p align="center">
   <img src="docs/images/viewing.jpg" alt="Viewing light simulation: a Portra print in a D50 viewing booth, under a tungsten lamp, a warm LED bulb and candlelight; a Velvia slide on a projector and held up to a tungsten lamp" width="100%">
   <br><sub>Viewing light: the same Portra print in a booth, under a tungsten lamp, a warm LED and candlelight; a Velvia slide projected and held up to a lamp.</sub>
+</p>
+
+<p align="center">
+  <img src="docs/images/double.jpg" alt="In-camera double exposure simulation on Portra 400 and HP5, with the second frame mirrored and upside down" width="100%">
+  <br><sub>Double exposures: the second frame's light adds to the first's in the emulsion, so silhouettes turn translucent where the other frame is bright.</sub>
 </p>
 
 <p align="center">
@@ -235,6 +241,18 @@ Emulsion scatter uses a long-tailed PSF (a 4-Gaussian fit of the Frieser MTF 1/(
 </details>
 
 <details>
+<summary><b>6d · Multiple exposure</b></summary>
+
+- **How the frames combine:** the second photo is registered on the first (scaled to fill, centred) and goes through its own spectral exposure, under its own scene light from its RAW white balance. Its layer exposures are then **added** to the first's before anything else happens. That is how two latent images on one frame combine.
+- **What follows from that:** everything downstream sees the sum: scatter, halation, DIR couplers, the characteristic curve, grain and printing. Highlights from both frames pile up into the shoulder, and grain is that of one frame of film, not two.
+- **Exposure:** by default each frame gets one stop less, as photographers do, so the sum prints at normal density. The *Second frame* slider weights one frame against the other.
+- **Limits:**
+  - The lab balances the print for the first frame's light.
+  - Pairings last for the session.
+  - A double exposure applied as an edit to a Photos original re-opens in the Photos extension as a single frame, since the extension can't see the second photo.
+</details>
+
+<details>
 <summary><b>7 · Archival fading</b></summary>
 
 - Applied to the final image dyes (print or slide), after the lab has balanced the fresh picture, so the fade is never corrected away.
@@ -342,6 +360,7 @@ swift build -c release
 .build/release/emulsion-cli develop photo.RW2 hp5 out/ --paper-tone warm --toner sepia --toner-strength 0.3   # split tone; also --toner selenium
 .build/release/emulsion-cli develop photo.RW2 portra400 out/ --dust 0.6 --scratches 0.3 --leak 0.5   # film handling
 .build/release/emulsion-cli develop photo.RW2 portra400 out/ --view tungsten   # also daylight, warmLED, candle, projector
+.build/release/emulsion-cli develop photo.RW2 portra400 out/ --double other.RW2 --second-ev -0.5   # double exposure (--no-compensate)
 .build/release/emulsion-cli viewing all                                # dye metamerism under each viewing light
 .build/release/emulsion-cli sheet photo.RW2 sheet.jpg                  # contact sheet of every stock
 .build/release/emulsion-cli crop photo.RW2 cinestill800t c.jpg         # 1:1 crop

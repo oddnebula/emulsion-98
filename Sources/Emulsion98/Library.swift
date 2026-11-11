@@ -7,7 +7,23 @@ import Photos
 actor RenderService {
     private var previewCache: (URL, LoadedPhoto)?
     private var fullCache: (URL, LoadedPhoto)?
+    private var secondCache: (URL, Int, LoadedPhoto)?
     static let previewLong = 1600
+
+    /// Second exposure for a double exposure, registered (scaled to fill, centred) on `first`'s frame and
+    /// optionally cropped to the same region.
+    private func secondFrame(_ url: URL?, for first: LoadedPhoto, crop: (Int, Int, Int, Int)? = nil) throws -> SecondExposure? {
+        guard let url else { return nil }
+        let long = first.image.longSide
+        let p: LoadedPhoto
+        if let c = secondCache, c.0 == url, c.1 == long { p = c.2 } else {
+            p = try PhotoIO.load(url, maxLongSide: long)
+            secondCache = (url, long, p)
+        }
+        var img = p.image.filled(width: first.image.width, height: first.image.height)
+        if let (x, y, w, h) = crop { img = img.cropped(x: x, y: y, width: w, height: h) }
+        return SecondExposure(image: img, isDisplayReferred: p.isDisplayReferred, sceneKelvin: p.capture.asShotKelvin)
+    }
 
     private func previewPhoto(_ url: URL) throws -> LoadedPhoto {
         if let c = previewCache, c.0 == url { return c.1 }
@@ -24,25 +40,32 @@ actor RenderService {
         return p
     }
 
-    func preview(_ url: URL, stock: FilmStock, settings: DevelopSettings) throws -> (developed: CGImage?, original: CGImage?, capture: CaptureInfo) {
+    func preview(_ url: URL, second: URL? = nil, stock: FilmStock, settings: DevelopSettings) throws -> (developed: CGImage?, original: CGImage?, capture: CaptureInfo) {
         let p = try previewPhoto(url)
-        let dev = Developer.develop(p.image, stock: stock, settings: settings, context: p.context(seed: PhotoIO.seed(for: url)))
+        var ctx = p.context(seed: PhotoIO.seed(for: url))
+        ctx.second = try secondFrame(second, for: p)
+        let dev = Developer.develop(p.image, stock: stock, settings: settings, context: ctx)
         return (PhotoIO.cgImage(dev), PhotoIO.cgImage(PhotoIO.displayOriginal(p.image)), p.capture)
     }
 
-    func stockThumbs(_ url: URL, stocks: [FilmStock], settings: DevelopSettings) throws -> [String: CGImage] {
+    func stockThumbs(_ url: URL, second: URL? = nil, stocks: [FilmStock], settings: DevelopSettings) throws -> [String: CGImage] {
         let p = try previewPhoto(url)
         let small = p.image.downscaled(toLongSide: 180)
+        let s2 = try secondFrame(second, for: p).map {
+            SecondExposure(image: $0.image.filled(width: small.width, height: small.height), isDisplayReferred: $0.isDisplayReferred,
+                           sceneKelvin: $0.sceneKelvin)
+        }
         var out: [String: CGImage] = [:]
         for s in stocks {
-            let ctx = p.context(fullLongSide: small.longSide, seed: PhotoIO.seed(for: url))
+            var ctx = p.context(fullLongSide: small.longSide, seed: PhotoIO.seed(for: url))
+            ctx.second = s2
             if let cg = PhotoIO.cgImage(Developer.develop(small, stock: s, settings: settings, context: ctx)) { out[s.id] = cg }
         }
         return out
     }
 
     /// 1:1 crop at full resolution so grain can be judged exactly as exported.
-    func loupe(_ url: URL, stock: FilmStock, settings: DevelopSettings, point: CGPoint, size: Int) throws -> CGImage? {
+    func loupe(_ url: URL, second: URL? = nil, stock: FilmStock, settings: DevelopSettings, point: CGPoint, size: Int) throws -> CGImage? {
         let p = try fullPhoto(url)
         let img = p.image
         let margin = 64
@@ -50,15 +73,17 @@ actor RenderService {
         let cx = max(0, min(img.width - size, x)), cy = max(0, min(img.height - size, y))
         let ex = max(0, cx - margin), ey = max(0, cy - margin)
         let crop = img.cropped(x: ex, y: ey, width: size + 2 * margin, height: size + 2 * margin)
-        let ctx = p.context(originX: ex, originY: ey, seed: PhotoIO.seed(for: url))
+        var ctx = p.context(originX: ex, originY: ey, seed: PhotoIO.seed(for: url))
+        ctx.second = try secondFrame(second, for: p, crop: (ex, ey, crop.width, crop.height))
         let dev = Developer.develop(crop, stock: stock, settings: settings, context: ctx)
         let inner = dev.cropped(x: cx - ex, y: cy - ey, width: size, height: size)
         return PhotoIO.cgImage(inner)
     }
 
-    func export(_ url: URL, stock: FilmStock, settings: DevelopSettings, to dest: URL, format: ExportFormat) throws {
+    func export(_ url: URL, second: URL? = nil, stock: FilmStock, settings: DevelopSettings, to dest: URL, format: ExportFormat) throws {
         let p = try PhotoIO.load(url)
-        let ctx = p.context(seed: PhotoIO.seed(for: url))
+        var ctx = p.context(seed: PhotoIO.seed(for: url))
+        ctx.second = try secondFrame(second, for: p)
         var dev = Developer.develop(p.image, stock: stock, settings: settings, context: ctx)
         dev = Border.apply(dev, style: settings.border, format: settings.format, stock: stock, seed: ctx.seed)
         try PhotoIO.save(dev, to: dest, format: format, source: url, stockName: stock.displayName)
@@ -103,6 +128,17 @@ final class Library: ObservableObject {
         scheduleRender(); loupeDirty()
     } }
     @Published var settings: DevelopSettings { didSet { saveSettings(); scheduleRender(); scheduleThumbs(); loupeDirty() } }
+    /// Double exposures made this session: photo -> the photo exposed on top of it.
+    @Published var doublePartners: [URL: URL] = [:] { didSet { scheduleRender(); scheduleThumbs(); loupeDirty() } }
+    func secondExposure(for url: URL) -> URL? {
+        guard let u = doublePartners[url], u != url, photos.contains(where: { $0.url == u }) else { return nil }
+        return u
+    }
+    /// Binding for the selected photo's second exposure (nil = single exposure).
+    var secondBinding: Binding<URL?> {
+        Binding(get: { [weak self] in self?.selection.flatMap { self?.secondExposure(for: $0) } },
+                set: { [weak self] v in guard let self, let sel = self.selection else { return }; self.doublePartners[sel] = v })
+    }
     @Published var exportFormat: ExportFormat { didSet { UserDefaults.standard.set(exportFormat.rawValue, forKey: "exportFormat") } }
     @Published var kindFilter: FilmKind?
     @Published var watchCards: Bool { didSet { UserDefaults.standard.set(watchCards, forKey: "watchCards") } }
@@ -299,7 +335,7 @@ final class Library: ObservableObject {
             if Task.isCancelled { return }
             rendering = true
             do {
-                let r = try await renderer.preview(url, stock: stock, settings: settings)
+                let r = try await renderer.preview(url, second: secondExposure(for: url), stock: stock, settings: settings)
                 if Task.isCancelled { return }
                 if let d = r.developed { preview = NSImage(cgImage: d, size: NSSize(width: d.width, height: d.height)) }
                 if let o = r.original { original = NSImage(cgImage: o, size: NSSize(width: o.width, height: o.height)) }
@@ -320,7 +356,7 @@ final class Library: ObservableObject {
         thumbTask = Task {
             try? await Task.sleep(nanoseconds: UInt64(delay * 1e9))
             if Task.isCancelled { return }
-            guard let t = try? await renderer.stockThumbs(url, stocks: FilmStock.catalog, settings: settings) else { return }
+            guard let t = try? await renderer.stockThumbs(url, second: secondExposure(for: url), stocks: FilmStock.catalog, settings: settings) else { return }
             if Task.isCancelled { return }
             stockThumbs = t.mapValues { NSImage(cgImage: $0, size: NSSize(width: $0.width, height: $0.height)) }
         }
@@ -338,7 +374,7 @@ final class Library: ObservableObject {
         loupeTask = Task {
             try? await Task.sleep(nanoseconds: UInt64(delay * 1e9))
             if Task.isCancelled { return }
-            if let cg = try? await renderer.loupe(url, stock: stock, settings: settings, point: pt, size: 240), !Task.isCancelled {
+            if let cg = try? await renderer.loupe(url, second: secondExposure(for: url), stock: stock, settings: settings, point: pt, size: 240), !Task.isCancelled {
                 loupe = NSImage(cgImage: cg, size: NSSize(width: cg.width, height: cg.height))
             }
         }
@@ -383,7 +419,7 @@ final class Library: ObservableObject {
                 let base = p.url.deletingPathExtension().lastPathComponent
                 let file = folder.appendingPathComponent("\(base)_\(stock.id).\(format.fileExtension)")
                 do {
-                    try await renderer.export(p.url, stock: stock, settings: settings, to: file, format: format)
+                    try await renderer.export(p.url, second: secondExposure(for: p.url), stock: stock, settings: settings, to: file, format: format)
                     if dest.usesPhotos && photosOK {
                         let original = links[p.url.path].flatMap { PhotosBridge.asset(id: $0) }
                         if inPlace, let original {
@@ -391,7 +427,7 @@ final class Library: ObservableObject {
                             var jpeg = file
                             if format != .jpeg {
                                 jpeg = folder.appendingPathComponent("\(base)_\(stock.id)_edit.jpg")
-                                try await renderer.export(p.url, stock: stock, settings: settings, to: jpeg, format: .jpeg)
+                                try await renderer.export(p.url, second: secondExposure(for: p.url), stock: stock, settings: settings, to: jpeg, format: .jpeg)
                             }
                             try await PhotosBridge.applyAsEdit(jpeg, to: original, settings: adjustment)
                             edits += 1

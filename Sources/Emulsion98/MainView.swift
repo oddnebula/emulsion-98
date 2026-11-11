@@ -404,6 +404,17 @@ struct Inspector: View {
                         PlatinumPopup(title: "Kept:", selection: $lib.settings.keeping,
                                       options: Keeping.allCases.map { ($0, $0.label) })
                     }
+                    if let sel = lib.selection {
+                        PlatinumPopup(title: "Double exposure:", selection: lib.secondBinding,
+                                      options: [(URL?.none, "None")] + lib.photos.filter { $0.url != sel }.map { (Optional($0.url), $0.name) })
+                            .balloon("Multiple exposure. A second photo exposes the same frame of film. Light adds up in each emulsion layer before development, so dark parts of one picture let the other show through and bright parts of either dominate, just as when you cock the shutter twice.")
+                        if lib.secondExposure(for: sel) != nil {
+                            PlatinumSlider(title: "Second frame", value: $lib.settings.secondEV, range: -2...2, defaultValue: 0) {
+                                abs($0) < 0.05 ? "Equal" : String(format: "%+.1f stops", $0)
+                            }
+                            Toggle("Give each frame −1 stop", isOn: $lib.settings.multiCompensate).toggleStyle(PlatinumCheckboxStyle())
+                        }
+                    }
                     if !(lib.stock.kind == .colorNegative && lib.settings.lab == .scan) {
                         PlatinumPopup(title: "Viewed under:", selection: $lib.settings.viewing,
                                       options: ViewingLight.options(slide: lib.stock.kind == .slide).map { ($0, $0.label) })

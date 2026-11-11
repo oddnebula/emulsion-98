@@ -51,6 +51,17 @@ if let v = opt("--scratches").flatMap(Float.init) { settings.scratches = v }
 if let v = opt("--leak").flatMap(Float.init) { settings.lightLeak = v }
 if let v = opt("--view"), let k = ViewingLight(rawValue: v) { settings.viewing = k }
 if args.contains("--no-falloff") { settings.enlargerFalloff = false; args.removeAll { $0 == "--no-falloff" } }
+if let v = opt("--second-ev").flatMap(Float.init) { settings.secondEV = v }
+if args.contains("--no-compensate") { settings.multiCompensate = false; args.removeAll { $0 == "--no-compensate" } }
+let doubleOpt = opt("--double").map { URL(fileURLWithPath: $0) }
+/// Second exposure registered to a photo's full frame (then cropped like it).
+func secondFrame(for photo: LoadedPhoto, crop: (Int, Int, Int, Int)? = nil) throws -> SecondExposure? {
+    guard let u = doubleOpt else { return nil }
+    let p2 = try PhotoIO.load(u, maxLongSide: photo.image.longSide)
+    var img = p2.image.filled(width: photo.image.width, height: photo.image.height)
+    if let (x, y, w, h) = crop { img = img.cropped(x: x, y: y, width: w, height: h) }
+    return SecondExposure(image: img, isDisplayReferred: p2.isDisplayReferred, sceneKelvin: p2.capture.asShotKelvin)
+}
 let kelvinOpt = opt("--kelvin").flatMap(Float.init)
 let timeOpt = opt("--time").flatMap(Double.init)
 
@@ -166,8 +177,10 @@ case "develop":
     let photo = try timeit("load") { try PhotoIO.load(input, maxLongSide: longOpt) }
     print("size \(photo.image.width)x\(photo.image.height) full \(photo.fullLongSide) displayReferred \(photo.isDisplayReferred)")
     print("camera \(photo.capture.cameraName) [\(photo.capture.profileName)] \(photo.capture.exposureSummary) WB \(photo.capture.asShotKelvin.map { "\(Int($0))K" } ?? "n/a")")
+    let second = try secondFrame(for: photo)
     for s in stocks(args[2]) {
         var ctx = photo.context(seed: PhotoIO.seed(for: input))
+        ctx.second = second
         if let k = kelvinOpt { ctx.sceneKelvin = k }
         if let t = timeOpt { ctx.exposureTime = t }
         var out = timeit(s.id) { Developer.develop(photo.image, stock: s, settings: settings, context: ctx) }
@@ -180,10 +193,13 @@ case "crop":
     let input = URL(fileURLWithPath: args[1])
     let photo = try PhotoIO.load(input)
     let img = photo.image
-    let x = Int(Float(img.width) * cx) - sizeOpt / 2, y = Int(Float(img.height) * cy) - sizeOpt / 2
+    // clamp so the crop's origin matches what `cropped` returns (defects and falloff are position-aware)
+    let x = max(0, min(img.width - sizeOpt, Int(Float(img.width) * cx) - sizeOpt / 2))
+    let y = max(0, min(img.height - sizeOpt, Int(Float(img.height) * cy) - sizeOpt / 2))
     let crop = img.cropped(x: x, y: y, width: sizeOpt, height: sizeOpt)
     let s = stocks(args[2])[0]
     var ctx = photo.context(fullLongSide: img.longSide, originX: x, originY: y, seed: PhotoIO.seed(for: input))
+    ctx.second = try secondFrame(for: photo, crop: (x, y, crop.width, crop.height))
     if let k = kelvinOpt { ctx.sceneKelvin = k }
     if let t = timeOpt { ctx.exposureTime = t }
     let out = Developer.develop(crop, stock: s, settings: settings, context: ctx)
