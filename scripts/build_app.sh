@@ -10,6 +10,12 @@ swift build -c release --product Emulsion98PhotosExt
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp .build/release/Emulsion98 "$APP/Contents/MacOS/Emulsion98"
+# UNIVERSAL=1 ./scripts/build_app.sh also builds for Intel and merges both architectures (for releases).
+if [[ "${UNIVERSAL:-0}" == "1" ]]; then
+  swift build -c release --product Emulsion98 --triple x86_64-apple-macosx15.0 --scratch-path .build-x86 >/dev/null
+  swift build -c release --product Emulsion98PhotosExt --triple x86_64-apple-macosx15.0 --scratch-path .build-x86 >/dev/null
+  lipo -create .build/release/Emulsion98 .build-x86/release/Emulsion98 -output "$APP/Contents/MacOS/Emulsion98"
+fi
 
 # Icon
 ICONWORK=$(mktemp -d)
@@ -50,6 +56,9 @@ PLIST
 EXT="$APP/Contents/PlugIns/Emulsion 98 Film.appex"
 mkdir -p "$EXT/Contents/MacOS"
 cp .build/release/Emulsion98PhotosExt "$EXT/Contents/MacOS/Emulsion98PhotosExt"
+if [[ "${UNIVERSAL:-0}" == "1" ]]; then
+  lipo -create .build/release/Emulsion98PhotosExt .build-x86/release/Emulsion98PhotosExt -output "$EXT/Contents/MacOS/Emulsion98PhotosExt"
+fi
 cat > "$EXT/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
