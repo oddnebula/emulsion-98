@@ -124,9 +124,12 @@ enum Spectral {
     static let d65White = SIMD3<Float>(0.95047, 1.0, 1.08883)
 
     /// Matrix adapting colours seen relative to `white` to D65 (von Kries in Bradford space).
-    static func adaptation(from white: SIMD3<Float>) -> (SIMD3<Float>) -> SIMD3<Float> {
+    /// Chromatic adaptation from `white` to the display's D65 white (Bradford cone space). `degree` < 1 is
+    /// incomplete adaptation (CIECAM02-style mix of the full von Kries gains with no change).
+    static func adaptation(from white: SIMD3<Float>, degree: Float = 1) -> (SIMD3<Float>) -> SIMD3<Float> {
         let src = bradford.apply(white), dst = bradford.apply(d65White)
-        let k = dst / src
+        // At degree 0 colours are passed through unadapted (both whites are normalised to Y = 1).
+        let k = degree * (dst / src) + SIMD3(repeating: 1 - degree)
         return { bradfordInv.apply(bradford.apply($0) * k) }
     }
 

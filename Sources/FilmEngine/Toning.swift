@@ -69,10 +69,10 @@ struct BWTone {
         }
     }
 
-    init(paper: PaperTone, toner: Toner, strength: Float, flare: Float) {
+    init(paper: PaperTone, toner: Toner, strength: Float, flare: Float, viewing: ViewingLight = .standard) {
         let n = Spectral.count
-        let view = Spectral.d50
-        let wY = (0..<n).map { Spectral.yBar[$0] * view[$0] }
+        let ref = Spectral.d50, view = viewing.spectrum
+        let wY = (0..<n).map { Spectral.yBar[$0] * ref[$0] }
         let wYs = wY.reduce(0, +)
         func normalised(_ s: [Float]) -> [Float] {
             let m = (0..<n).map { s[$0] * wY[$0] }.reduce(0, +) / wYs
@@ -90,7 +90,7 @@ struct BWTone {
         }
         let white = Spectral.xyz(view)
         let scale = 1 / white.y
-        let adapt = Spectral.adaptation(from: white * scale)
+        let adapt = Spectral.adaptation(from: white * scale, degree: viewing.adaptation)
         table = (0..<Self.steps).map { k in
             let d = Self.maxD * Float(k) / Float(Self.steps - 1)
             let f = Self.converted(toner, strength: strength, d: d)
@@ -111,11 +111,12 @@ struct BWTone {
     /// Nil for an untoned neutral print (rendered as an exact grey).
     static func cached(_ s: DevelopSettings, flare: Float) -> BWTone? {
         let toner = s.tonerStrength < 0.01 ? Toner.none : s.toner
-        guard s.paperTone != .neutral || toner != .none else { return nil }
-        let key = "\(s.paperTone.rawValue)|\(toner.rawValue)|\(Int((s.tonerStrength * 50).rounded()))"
+        guard s.paperTone != .neutral || toner != .none || s.viewing != .standard else { return nil }
+        let key = "\(s.paperTone.rawValue)|\(toner.rawValue)|\(Int((s.tonerStrength * 50).rounded()))|\(s.viewing.rawValue)"
         lock.lock(); defer { lock.unlock() }
         if let t = cache[key] { return t }
-        let t = BWTone(paper: s.paperTone, toner: toner, strength: (s.tonerStrength * 50).rounded() / 50, flare: flare)
+        let t = BWTone(paper: s.paperTone, toner: toner, strength: (s.tonerStrength * 50).rounded() / 50, flare: flare,
+                       viewing: s.viewing)
         cache[key] = t
         return t
     }

@@ -211,9 +211,12 @@ final class FilmModel {
         }
         // Cinema print is judged on a xenon-arc projector (≈ 5400 K daylight-like); paper under D50.
         let viewing = stock.medium == .cinePrint ? Spectral.illuminant(kelvin: 5400) : Spectral.d50
-        display = Self.displayLUT(dyes: print.dyesSampled, base: print.baseSpectrum, maxIn: print.measuredRange + 0.3,
-                                  balance: print.measured == nil, viewing: viewing,
-                                  flare: stock.medium == .cinePrint ? Self.projectionFlare : Self.paperFlare)
+        let flare = stock.medium == .cinePrint ? Self.projectionFlare : Self.paperFlare
+        let maxIn = print.measuredRange + 0.3, pbase = print.baseSpectrum
+        var bd: [[Float]] = []
+        display = Self.displayLUT(dyes: print.dyesSampled, base: pbase, maxIn: maxIn,
+                                  balance: print.measured == nil, viewing: viewing, flare: flare, balancedDyes: { bd = $0 })
+        displaySource = (bd, pbase, maxIn, flare)
     }
     private var range: Float { print.measured != nil ? print.measuredRange : print.range }
     var printRange: Float { range }
@@ -222,12 +225,17 @@ final class FilmModel {
     static let paperFlare: Float = 0.004, transparencyFlare: Float = 0.0015, projectionFlare: Float = 0.002
 
     private func buildSlide() {
+        var bd: [[Float]] = []
         if let m = measured {
-            display = Self.displayLUT(dyes: m.dyes, base: m.base, maxIn: (m.curves.flatMap { $0 }.max() ?? 3) + 0.4, balance: false,
-                                      flare: Self.transparencyFlare)
+            let maxIn = (m.curves.flatMap { $0 }.max() ?? 3) + 0.4
+            display = Self.displayLUT(dyes: m.dyes, base: m.base, maxIn: maxIn, balance: false,
+                                      flare: Self.transparencyFlare, balancedDyes: { bd = $0 })
+            displaySource = (bd, m.base, maxIn, Self.transparencyFlare)
         } else {
-            display = Self.displayLUT(dyes: stock.dyes.map { $0.sampled }, base: [Float](repeating: 0.12, count: Spectral.count),
-                                      maxIn: stock.slideRange + 0.6, balance: true, flare: Self.transparencyFlare)
+            let base = [Float](repeating: 0.12, count: Spectral.count), maxIn = stock.slideRange + 0.6
+            display = Self.displayLUT(dyes: stock.dyes.map { $0.sampled }, base: base,
+                                      maxIn: maxIn, balance: true, flare: Self.transparencyFlare, balancedDyes: { bd = $0 })
+            displaySource = (bd, base, maxIn, Self.transparencyFlare)
         }
     }
 
@@ -240,7 +248,8 @@ final class FilmModel {
     /// the dyes — first-surface reflection of the paper, or light-box / scanner veiling glare — which is
     /// what limits real blacks to a visual density of about 2.3–2.5.
     static func displayLUT(dyes rawDyes: [[Float]], base: [Float], maxIn: Float, balance: Bool,
-                           viewing: [Float] = Spectral.d50, flare: Float = 0) -> LUT3 {
+                           viewing: [Float] = Spectral.d50, flare: Float = 0, adaptation degree: Float = 1,
+                           balancedDyes: ((([[Float]]) -> Void))? = nil) -> LUT3 {
         var dyes = rawDyes
         func xyz(_ d: SIMD3<Float>) -> SIMD3<Float> {
             var spd = [Float](repeating: 0, count: Spectral.count)
@@ -253,7 +262,7 @@ final class FilmModel {
         }
         let white = xyz(.zero)
         let scale = 1 / white.y
-        let adapt = Spectral.adaptation(from: white * scale)   // paper / film-base white -> display white
+        let adapt = Spectral.adaptation(from: white * scale, degree: degree)   // paper / film-base white -> display white
         func rgb(_ d: SIMD3<Float>) -> SIMD3<Float> { Spectral.xyzToSRGB.apply(adapt(xyz(d) * scale)) }
         // Grey-balance near maximum density (where blacks live): scale each dye until equal amounts
         // render neutral. Mid-tones are kept neutral separately by the per-stock grey-scale calibration.
@@ -268,9 +277,26 @@ final class FilmModel {
                 dyes[k] = dyes[k].map { $0 * f }
             }
         }
+        balancedDyes?(dyes)
         return LUT3(n: 33, maxIn: maxIn) { d in
             Spectral.xyzToSRGB.apply(adapt(xyz(d) * scale))
         }
+    }
+
+    /// What the standard display LUT was built from (with calibrated dye strengths), for other viewing lights.
+    private(set) var displaySource: (dyes: [[Float]], base: [Float], maxIn: Float, flare: Float)?
+    private var viewCache: [ViewingLight: LUT3] = [:]
+    private let viewLock = NSLock()
+
+    /// Display LUT for a non-standard viewing light (nil: the standard one).
+    func display(for view: ViewingLight) -> LUT3? {
+        guard view != .standard, let src = displaySource else { return nil }
+        viewLock.lock(); defer { viewLock.unlock() }
+        if let l = viewCache[view] { return l }
+        let l = Self.displayLUT(dyes: src.dyes, base: src.base, maxIn: src.maxIn, balance: false,
+                                viewing: view.spectrum, flare: src.flare, adaptation: view.adaptation)
+        viewCache[view] = l
+        return l
     }
 
     // MARK: Tone (per develop: push/pull changes development contrast)
@@ -348,16 +374,16 @@ final class FilmModel {
     /// exposure given to the paper before printing, which lifts it out of its toe so the faintest
     /// highlight detail of a dense negative prints instead of staying paper-white.
     @inline(__always) func render(_ d: SIMD3<Float>, balance: SIMD3<Float>, neutral n: Neutralizer = .identity,
-                                  flash: Float = 0, bwKp: Float = 0, fade: Fade? = nil) -> SIMD3<Float> {
+                                  flash: Float = 0, bwKp: Float = 0, fade: Fade? = nil, view: LUT3? = nil) -> SIMD3<Float> {
         switch stock.kind {
         case .colorNegative:
-            return renderPrint(negToPrint!.sample(d), balance: balance, neutral: n, flash: flash, fade: fade)
+            return renderPrint(negToPrint!.sample(d), balance: balance, neutral: n, flash: flash, fade: fade, view: view)
         case .slide:
             // Balance scales density, so clear film (D = 0) always stays clear.
             let dd = SIMD3(d.x + n.offset(0, d.x), d.y + n.offset(1, d.y), d.z + n.offset(2, d.z))
             var ds = simd_max(dd * SIMD3(exp(balance.x), exp(balance.y), exp(balance.z)), .zero)
             if let f = fade { ds = f.apply(ds) }
-            return display!.sample(ds)
+            return (view ?? display!).sample(ds)
         case .blackWhite:
             return renderPrint(SIMD3(repeating: -d.x), balance: balance, flash: flash, bwKp: bwKp, fade: fade)
         }
@@ -367,7 +393,8 @@ final class FilmModel {
     /// `negToPrint` of the negative densities, for B&W minus the (effective printing) density. Splitting
     /// here lets the enlarger's optics act on the light at the paper.
     @inline(__always) func renderPrint(_ lp0: SIMD3<Float>, balance: SIMD3<Float>, neutral n: Neutralizer = .identity,
-                                       flash: Float = 0, bwKp: Float = 0, fade: Fade? = nil, tone: BWTone? = nil) -> SIMD3<Float> {
+                                       flash: Float = 0, bwKp: Float = 0, fade: Fade? = nil, tone: BWTone? = nil,
+                                       view: LUT3? = nil) -> SIMD3<Float> {
         switch stock.kind {
         case .colorNegative:
             var lp = lp0
@@ -387,7 +414,7 @@ final class FilmModel {
                            range * Developer.logistic(paperKp * lp.z))
             }
             if let f = fade { dp = f.apply(dp) }
-            return display!.sample(dp)
+            return (view ?? display!).sample(dp)
         case .slide:
             return .zero
         case .blackWhite:

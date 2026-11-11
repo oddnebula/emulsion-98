@@ -404,6 +404,11 @@ struct Inspector: View {
                         PlatinumPopup(title: "Kept:", selection: $lib.settings.keeping,
                                       options: Keeping.allCases.map { ($0, $0.label) })
                     }
+                    if !(lib.stock.kind == .colorNegative && lib.settings.lab == .scan) {
+                        PlatinumPopup(title: "Viewed under:", selection: $lib.settings.viewing,
+                                      options: ViewingLight.options(slide: lib.stock.kind == .slide).map { ($0, $0.label) })
+                            .balloon("Viewing light. The print's dyes are lit by this light spectrum, so colours shift against each other (metamerism), and your eye only partly adapts: a print under a living-room lamp stays warm, by candlelight warmer still.")
+                    }
                     PlatinumSlider(title: "Dust & hair", value: $lib.settings.dust, range: 0...1, defaultValue: 0) {
                         $0 < 0.01 ? "Clean" : String(format: "%.0f%%", $0 * 100)
                     }

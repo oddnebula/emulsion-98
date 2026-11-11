@@ -64,6 +64,14 @@ $B crop $IN trix400 $T/d3.jpg --size 520 --cx 0.3 --cy 0.3 --dust 1 --scratches 
 swift scripts/contact_sheet.swift docs/images/handling.jpg 3 640 \
   "Portra · light leak=$T/p_leak.jpg" "Superia lab scan · light leak=$T/s_leak.jpg" "HP5 · light leak=$T/h_leak.jpg" \
   "Portra print 1:1 · dust prints white=$T/d1.jpg" "Velvia slide 1:1 · dust shows dark=$T/d2.jpg" "Tri-X condenser 1:1 · base scratch=$T/d3.jpg"
+dev p_tung portra400 --view tungsten
+dev p_led portra400 --view warmLED
+dev p_candle portra400 --view candle
+dev v_proj velvia50 --view projector
+dev v_tung velvia50 --view tungsten
+swift scripts/contact_sheet.swift docs/images/viewing.jpg 3 640 \
+  "Portra print · viewing booth (D50)=$T/portra400.jpg" "Portra print · tungsten lamp=$T/p_tung.jpg" "Portra print · warm LED bulb=$T/p_led.jpg" \
+  "Portra print · candlelight=$T/p_candle.jpg" "Velvia · slide projector=$T/v_proj.jpg" "Velvia · held up to a tungsten lamp=$T/v_tung.jpg"
 # 1:1 grain and halation
 $B crop $IN cinestill800t $T/halo.jpg --size 520 --cx 0.61 --cy 0.26 >/dev/null
 $B crop $IN portra800 $T/g1.jpg --size 520 --cx 0.80 --cy 0.42 >/dev/null

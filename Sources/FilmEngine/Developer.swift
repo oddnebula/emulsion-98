@@ -87,10 +87,12 @@ public struct DevelopSettings: Codable, Equatable {
     public var dust: Float = 0
     public var scratches: Float = 0
     public var lightLeak: Float = 0
+    /// The light the finished print / slide is looked at under (not used for lab scans).
+    public var viewing: ViewingLight = .standard
     public init() {}
 
     // Tolerant decoding: settings saved by older versions keep working when fields are added.
-    enum CodingKeys: String, CodingKey { case exposure, push, grain, halation, format, sceneLight, labCorrection, reciprocity, lab, agitation, ageYears, storage, filter, crossProcess, redscale, ccYellow, ccMagenta, printExposure, preflash, paperGrade, paperSurface, border, printAge, keeping, enlarger, enlargerFalloff, paperTone, toner, tonerStrength, dust, scratches, lightLeak }
+    enum CodingKeys: String, CodingKey { case exposure, push, grain, halation, format, sceneLight, labCorrection, reciprocity, lab, agitation, ageYears, storage, filter, crossProcess, redscale, ccYellow, ccMagenta, printExposure, preflash, paperGrade, paperSurface, border, printAge, keeping, enlarger, enlargerFalloff, paperTone, toner, tonerStrength, dust, scratches, lightLeak, viewing }
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         exposure = try c.decodeIfPresent(Float.self, forKey: .exposure) ?? 0
@@ -125,6 +127,7 @@ public struct DevelopSettings: Codable, Equatable {
         dust = try c.decodeIfPresent(Float.self, forKey: .dust) ?? 0
         scratches = try c.decodeIfPresent(Float.self, forKey: .scratches) ?? 0
         lightLeak = try c.decodeIfPresent(Float.self, forKey: .lightLeak) ?? 0
+        viewing = try c.decodeIfPresent(ViewingLight.self, forKey: .viewing) ?? .standard
     }
 }
 
@@ -366,6 +369,7 @@ public enum Developer {
         // 8. Printing (negatives) / viewing (slides): spectral dyes -> paper -> D65 viewing.
         if scanner == nil && stock.kind != .slide {
             let bwTone = isBW ? BWTone.cached(settings, flare: FilmModel.paperFlare) : nil
+            let viewLUT = isBW ? nil : model.display(for: settings.viewing)
             // Optical print: the light through the negative at the paper (log10 exposure per paper layer),
             // then the enlarger's lens and falloff act on it, then the paper develops.
             map3(&R, &G, &B) { r, g, b in
@@ -383,16 +387,18 @@ public enum Developer {
             }
             map3(&R, &G, &B) { r, g, b in
                 var c = model.renderPrint(SIMD3(r, g, b), balance: balance, neutral: neutral, flash: flash, bwKp: bwKp, fade: fade,
-                                          tone: bwTone)
+                                          tone: bwTone, view: viewLUT)
                 if !isBW { c = model.profile(c) }
                 r = c.x; g = c.y; b = c.z
             }
         } else {
         // Dust in the scanner: blocked light reads as extra density on the negative (prints white).
         let scanDust = scanner != nil ? defects.transmission?.map { -log10(max($0, 0.02)) } : nil
+        let slideView = stock.kind == .slide ? model.display(for: settings.viewing) : nil
         map3i(&R, &G, &B) { i, r, g, b in
             var c = scanner?.render(SIMD3(r, g, b), balance: scanBal + SIMD3(repeating: scanDust?[i] ?? 0), fade: fade)
-                ?? model.render(SIMD3(r, isBW ? r : g, isBW ? r : b), balance: balance, neutral: neutral, flash: flash, bwKp: bwKp, fade: fade)
+                ?? model.render(SIMD3(r, isBW ? r : g, isBW ? r : b), balance: balance, neutral: neutral, flash: flash, bwKp: bwKp, fade: fade,
+                                view: slideView)
             if !isBW { c = model.profile(c) }
             // Slides are seen directly: dust blocks the viewing light.
             if stock.kind == .slide, let t = defects.transmission { c *= t[i] }

@@ -39,7 +39,10 @@ final class PhotoEditingViewController: NSViewController, PHContentEditingContro
 final class ExtModel: ObservableObject {
     static let format = "local.emulsion98.film"
 
-    @Published var stockID = UserDefaults.standard.string(forKey: "stock") ?? "portra400" { didSet { schedule() } }
+    @Published var stockID = UserDefaults.standard.string(forKey: "stock") ?? "portra400" { didSet {
+        if !ViewingLight.options(slide: stock.kind == .slide).contains(settings.viewing) { settings.viewing = .standard }
+        schedule()
+    } }
     @Published var settings = DevelopSettings() { didSet { schedule() } }
     @Published var preview: NSImage?
     @Published var original: NSImage?
@@ -129,7 +132,8 @@ final class ExtModel: ObservableObject {
                                     "printAge": "\(s.printAge)", "keeping": s.keeping.rawValue,
                                     "enlarger": s.enlarger.rawValue, "falloff": "\(s.enlargerFalloff)",
                                     "paperTone": s.paperTone.rawValue, "toner": s.toner.rawValue, "tonerStrength": "\(s.tonerStrength)",
-                                    "dust": "\(s.dust)", "scratches": "\(s.scratches)", "lightLeak": "\(s.lightLeak)"])) ?? Data()
+                                    "dust": "\(s.dust)", "scratches": "\(s.scratches)", "lightLeak": "\(s.lightLeak)",
+                                    "viewing": s.viewing.rawValue])) ?? Data()
     }
 
     func restore(_ data: Data) {
@@ -165,6 +169,7 @@ final class ExtModel: ObservableObject {
         if let v = d["dust"].flatMap(Float.init) { s.dust = v }
         if let v = d["scratches"].flatMap(Float.init) { s.scratches = v }
         if let v = d["lightLeak"].flatMap(Float.init) { s.lightLeak = v }
+        if let v = d["viewing"].flatMap(ViewingLight.init(rawValue:)) { s.viewing = v }
         settings = s
         if let id = d["stock"], FilmStock.stock(id: id) != nil { stockID = id }
     }

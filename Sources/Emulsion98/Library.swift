@@ -95,7 +95,13 @@ struct RetroDialog: Identifiable {
 final class Library: ObservableObject {
     @Published var photos: [Photo] = []
     @Published var selection: URL? { didSet { if oldValue != selection { photoChanged() } } }
-    @Published var stockID: String { didSet { UserDefaults.standard.set(stockID, forKey: "stock"); scheduleRender(); loupeDirty() } }
+    @Published var stockID: String { didSet {
+        UserDefaults.standard.set(stockID, forKey: "stock")
+        // keep the viewing light one that exists for this medium (projector: slides only)
+        let s = FilmStock.stock(id: stockID)
+        if let s, !ViewingLight.options(slide: s.kind == .slide).contains(settings.viewing) { settings.viewing = .standard }
+        scheduleRender(); loupeDirty()
+    } }
     @Published var settings: DevelopSettings { didSet { saveSettings(); scheduleRender(); scheduleThumbs(); loupeDirty() } }
     @Published var exportFormat: ExportFormat { didSet { UserDefaults.standard.set(exportFormat.rawValue, forKey: "exportFormat") } }
     @Published var kindFilter: FilmKind?
@@ -370,7 +376,8 @@ final class Library: ObservableObject {
                                                         "enlarger": settings.enlarger.rawValue, "falloff": "\(settings.enlargerFalloff)",
                                                         "paperTone": settings.paperTone.rawValue, "toner": settings.toner.rawValue,
                                                         "tonerStrength": "\(settings.tonerStrength)", "dust": "\(settings.dust)",
-                                                        "scratches": "\(settings.scratches)", "lightLeak": "\(settings.lightLeak)"])) ?? Data()
+                                                        "scratches": "\(settings.scratches)", "lightLeak": "\(settings.lightLeak)",
+                                                        "viewing": settings.viewing.rawValue])) ?? Data()
             for p in list {
                 status = "Developing \(p.name) in \(stock.displayName)… (\(done + 1) of \(list.count))"
                 let base = p.url.deletingPathExtension().lastPathComponent

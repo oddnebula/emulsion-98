@@ -89,6 +89,7 @@ Most "film filters" are a colour lookup table and a grain overlay. **Emulsion 98
 | **Enlarger** | The enlarging lens's blur (about 45 lp/mm at 50 % MTF) and corner falloff (corners get about 84 % of the light, so they print lighter, the opposite of camera vignetting). For B&W, a diffusion or condenser head: the condenser's Callier effect prints silver negatives about a grade harder, with crisper grain. |
 | **Paper tone & toning (B&W)** | Neutral, warm-tone (cream base) or cold-tone paper, and selenium or sepia toning, rendered spectrally. Selenium converts the densest silver first (deeper, purple-brown shadows); a sepia bleach converts the thinnest silver first, so a short bleach gives the classic split tone. |
 | **Film handling** | Dust and hair, scratches and light leaks, each added at the stage where it happens. Dust prints white from a negative and shows dark on a slide; condensers show it sharply and diffusion heads soften it. Shallow emulsion scratches remove the top (yellow) dye layer, so they come out coloured. Leaks enter through the base and reach the red layer first, so they glow red-orange. |
+| **Viewing light** | A viewing booth, daylight, a tungsten lamp, a warm LED bulb or candlelight, and a projector for slides. The dyes are integrated under the light's spectrum, so colours shift against each other (metamerism), and the eye adapts only partly (CIECAM02-style), so a print under a lamp stays warm. |
 | **Paper surface** | Glossy, lustre or matte. Surface reflection sets the print's deepest black (about D-max 2.3, 2.0 and 1.6). |
 | **Borders** | A filed negative carrier (rough black rebate on a white paper margin), or a full-frame scan of the strip with ISO 35 mm perforations (4.75 mm pitch) and edge printing. Added when you develop. |
 | **Archival fading** | The finished print or slide ages for up to 80 years, in the dark or on display. Each dye fades at its own rate and leftover couplers turn the whites yellow, so old album prints go red, Ektachrome goes magenta, cine prints go pink and framed prints go cyan. For lab scans, the stored negative fades and is scanned as it is now. |
@@ -113,6 +114,11 @@ Most "film filters" are a colour lookup table and a grain overlay. **Emulsion 98
 <p align="center">
   <img src="docs/images/handling.jpg" alt="Physically based film damage: light leaks on Portra, a Superia lab scan and HP5; at 1:1, dust printing white on a Portra print, showing dark on a Velvia slide, and a base scratch under a condenser enlarger on Tri-X" width="100%">
   <br><sub>Film handling: light leaks on a Portra print, a Superia lab scan and HP5 (top). At 1:1, the same dust prints white from a negative and shows dark on a slide; a base scratch shows under a condenser (bottom).</sub>
+</p>
+
+<p align="center">
+  <img src="docs/images/viewing.jpg" alt="Viewing light simulation: a Portra print in a D50 viewing booth, under a tungsten lamp, a warm LED bulb and candlelight; a Velvia slide on a projector and held up to a tungsten lamp" width="100%">
+  <br><sub>Viewing light: the same Portra print in a booth, under a tungsten lamp, a warm LED and candlelight; a Velvia slide projected and held up to a lamp.</sub>
 </p>
 
 <p align="center">
@@ -208,6 +214,24 @@ Emulsion scatter uses a long-tailed PSF (a 4-Gaussian fit of the Frieser MTF 1/(
   - **Deep:** reaches the base. It prints black from a negative and shows white on a slide.
 - **Base scratches:** scatter light out of the beam. They show as white lines under a condenser and nearly vanish under diffusion light.
 - **Light leaks:** extra exposure entering from a frame edge, with the spectral response of the redscale path: through the base first, then the red, green and blue layers. That is why leaks come out red-orange on colour negative, and why their overexposed cores turn yellow in scans. Leak light goes through the film's scatter and halation like any other exposure.
+</details>
+
+<details>
+<summary><b>6c · Viewing light: metamerism and adaptation</b></summary>
+
+- **Spectral viewing:** the print's or slide's dyes are integrated under the viewing light's spectrum. The lights are a D50 booth (the reference), 6500 K daylight, CIE illuminant A (tungsten), a CRI-80-class 2700 K LED (450 nm pump plus phosphor), 1900 K candlelight, and a 3300 K halogen projector for slides. Dye metamerism follows by itself: colours shift relative to each other, not only by a cast.
+- **Partial adaptation:** CIECAM02-style degrees of adaptation (booth 1, daylight 0.95, home lighting 0.8, candlelight 0.65, projector 0.95) mix full Bradford gains with none. A print in a living room stays warm, as it looks in person.
+- **Measured** with `emulsion-cli viewing <stock>` (Oklab ΔE × 100 over the ColorChecker, against the booth):
+
+  | | metamerism alone (fully adapted), mean / max | as seen, mean |
+  |---|---|---|
+  | Portra 400 print, tungsten | 1.5 / 2.7 | 2.4 |
+  | Portra 400 print, warm LED | 1.9 / 4.0 | 2.7 |
+  | Ektar 100 print, candlelight | 3.8 / 6.6 | 6.8 |
+  | Velvia slide, projector | 1.4 / 2.7 | 1.5 |
+
+- **B&W:** silver is spectrally neutral, so there's no metamerism, only the adaptation. Toned prints do shift, because their image substances aren't flat.
+- **Lab scans:** digital files have no viewing light, so the option is hidden for them.
 </details>
 
 <details>
@@ -317,6 +341,8 @@ swift build -c release
 .build/release/emulsion-cli develop photo.RW2 trix400 out/ --enlarger condenser --no-falloff   # Callier effect; even illumination
 .build/release/emulsion-cli develop photo.RW2 hp5 out/ --paper-tone warm --toner sepia --toner-strength 0.3   # split tone; also --toner selenium
 .build/release/emulsion-cli develop photo.RW2 portra400 out/ --dust 0.6 --scratches 0.3 --leak 0.5   # film handling
+.build/release/emulsion-cli develop photo.RW2 portra400 out/ --view tungsten   # also daylight, warmLED, candle, projector
+.build/release/emulsion-cli viewing all                                # dye metamerism under each viewing light
 .build/release/emulsion-cli sheet photo.RW2 sheet.jpg                  # contact sheet of every stock
 .build/release/emulsion-cli crop photo.RW2 cinestill800t c.jpg         # 1:1 crop
 .build/release/emulsion-cli diag portra400                             # ColorChecker accuracy

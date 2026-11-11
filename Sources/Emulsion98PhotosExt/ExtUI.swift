@@ -144,6 +144,10 @@ struct ExtRoot: View {
                     if m.settings.printAge >= 0.5 {
                         PlatinumPopup(title: "Kept:", selection: $m.settings.keeping, options: Keeping.allCases.map { ($0, $0.label) })
                     }
+                    if !(m.stock.kind == .colorNegative && m.settings.lab == .scan) {
+                        PlatinumPopup(title: "Viewed under:", selection: $m.settings.viewing,
+                                      options: ViewingLight.options(slide: m.stock.kind == .slide).map { ($0, $0.label) })
+                    }
                     PlatinumSlider(title: "Dust & hair", value: $m.settings.dust, range: 0...1, defaultValue: 0) {
                         $0 < 0.01 ? "Clean" : String(format: "%.0f%%", $0 * 100)
                     }

@@ -49,6 +49,7 @@ if let v = opt("--toner-strength").flatMap(Float.init) { settings.tonerStrength 
 if let v = opt("--dust").flatMap(Float.init) { settings.dust = v }
 if let v = opt("--scratches").flatMap(Float.init) { settings.scratches = v }
 if let v = opt("--leak").flatMap(Float.init) { settings.lightLeak = v }
+if let v = opt("--view"), let k = ViewingLight(rawValue: v) { settings.viewing = k }
 if args.contains("--no-falloff") { settings.enlargerFalloff = false; args.removeAll { $0 == "--no-falloff" } }
 let kelvinOpt = opt("--kelvin").flatMap(Float.init)
 let timeOpt = opt("--time").flatMap(Double.init)
@@ -98,6 +99,9 @@ case "spectra":
         return (String(f[0]), f.dropFirst().compactMap { Float($0) })
     }
     for st in stocks(args[1]) { print(FilmDiagnostics.spectralCheck(st, spectra: list, verbose: verbose)) }
+
+case "viewing":
+    for st in stocks(args[1]) { print(FilmDiagnostics.viewingReport(st)) }
 
 case "priors":
     print(FilmDiagnostics.priorReport())
