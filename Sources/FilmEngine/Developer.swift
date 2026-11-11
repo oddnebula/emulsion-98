@@ -43,10 +43,17 @@ public struct DevelopSettings: Codable, Equatable {
     public var crossProcess = false
     /// Colour negative loaded backwards.
     public var redscale = false
+    /// Printing: enlarger filtration in CC units (yellow, magenta), print exposure in stops, pre-flash (0…1).
+    public var ccYellow: Float = 0
+    public var ccMagenta: Float = 0
+    public var printExposure: Float = 0
+    public var preflash: Float = 0
+    /// B&W variable-contrast paper grade (−1 = "00" … 5); 2 ≈ unfiltered.
+    public var paperGrade: Float = 2
     public init() {}
 
     // Tolerant decoding: settings saved by older versions keep working when fields are added.
-    enum CodingKeys: String, CodingKey { case exposure, push, grain, halation, format, sceneLight, labCorrection, reciprocity, lab, agitation, ageYears, storage, filter, crossProcess, redscale }
+    enum CodingKeys: String, CodingKey { case exposure, push, grain, halation, format, sceneLight, labCorrection, reciprocity, lab, agitation, ageYears, storage, filter, crossProcess, redscale, ccYellow, ccMagenta, printExposure, preflash, paperGrade }
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         exposure = try c.decodeIfPresent(Float.self, forKey: .exposure) ?? 0
@@ -64,6 +71,11 @@ public struct DevelopSettings: Codable, Equatable {
         filter = try c.decodeIfPresent(LensFilter.self, forKey: .filter) ?? .none
         crossProcess = try c.decodeIfPresent(Bool.self, forKey: .crossProcess) ?? false
         redscale = try c.decodeIfPresent(Bool.self, forKey: .redscale) ?? false
+        ccYellow = try c.decodeIfPresent(Float.self, forKey: .ccYellow) ?? 0
+        ccMagenta = try c.decodeIfPresent(Float.self, forKey: .ccMagenta) ?? 0
+        printExposure = try c.decodeIfPresent(Float.self, forKey: .printExposure) ?? 0
+        preflash = try c.decodeIfPresent(Float.self, forKey: .preflash) ?? 0
+        paperGrade = try c.decodeIfPresent(Float.self, forKey: .paperGrade) ?? 2
     }
 }
 
@@ -143,11 +155,30 @@ public enum Developer {
         let neutral = model.cachedNeutralizer(push: settings.push)
         // A redscale cast is far outside a printer's colour-correction range: it can only take the edge off.
         let correction = redscale ? min(settings.labCorrection, 0.3) : settings.labCorrection
-        let balance = model.balance(scene: table, tone: tone, ev: filmEV, correction: correction, neutral: neutral,
+        var balance = model.balance(scene: table, tone: tone, ev: filmEV, correction: correction, neutral: neutral,
                                     densityEV: reciprocityEV)
         let scanner = stock.kind == .colorNegative && settings.lab == .scan ? model.scanModel(push: settings.push) : nil
-        let scanBal = scanner.map { model.scanBalance($0, scene: table, tone: tone, ev: filmEV, correction: correction,
+        var scanBal = scanner.map { model.scanBalance($0, scene: table, tone: tone, ev: filmEV, correction: correction,
                                                        densityEV: reciprocityEV) } ?? .zero
+        // The printer's own hand: dichroic filtration (+Y removes blue light from the enlarger → a bluer
+        // print; +M → a greener print) and print exposure (+1 stop → a darker print). On a scan the same
+        // controls shift the scanner's channel levels the same visual way.
+        let cc = SIMD3<Float>(0, settings.ccMagenta, settings.ccYellow) * 0.01
+        if stock.kind == .colorNegative {
+            balance += -cc + SIMD3(repeating: settings.printExposure * log10(2))
+            scanBal += cc * 0.55 - SIMD3(repeating: settings.printExposure * 0.16)
+        }
+        // B&W: variable-contrast paper; grade filter plus any colour-head filtration set the contrast.
+        var bwKp: Float = 0
+        if stock.kind == .blackWhite {
+            bwKp = model.bwPaperKp(grade: settings.paperGrade, ccY: settings.ccYellow, ccM: settings.ccMagenta)
+            // keep mid grey on its density: balance = z(kp) + grey density
+            let fm = Developer.logit(Developer.midGreyDensity / model.printRange)
+            balance += SIMD3(repeating: fm / bwKp - fm / model.paperKp + settings.printExposure * log10(2))
+        }
+        let flash = stock.kind == .slide ? 0 : settings.preflash * 0.06
+        // The printer re-sets exposure after flashing so mid grey prints the same (flash adds ≈ log(1+f) there).
+        if flash > 0 { balance -= SIMD3(repeating: log10(1 + flash)) }
 
         // 1. Camera light -> spectral reconstruction -> exposure of each film layer.
         var R = img.r, G = img.g, B = img.b
@@ -234,11 +265,15 @@ public enum Developer {
         // 8. Printing (negatives) / viewing (slides): spectral dyes -> paper -> D65 viewing.
         map3(&R, &G, &B) { r, g, b in
             var c = scanner?.render(SIMD3(r, g, b), balance: scanBal)
-                ?? model.render(SIMD3(r, isBW ? r : g, isBW ? r : b), balance: balance, neutral: neutral)
+                ?? model.render(SIMD3(r, isBW ? r : g, isBW ? r : b), balance: balance, neutral: neutral, flash: flash, bwKp: bwKp)
             if !isBW { c = model.profile(c) }
             r = c.x; g = c.y; b = c.z
         }
         var out = RGBImage(width: w, height: h, r: R, g: G, b: B)
+
+        // 8b. Lab scanner optics: its lens / CCD blur (≈ 4000 dpi class) and the fixed unsharp mask
+        //     minilab scanners apply, which is part of the familiar crisp, grain-forward scan look.
+        if scanner != nil { scannerOptics(&out, pixelUm: pixelUm) }
 
         // 9. Optional residual look adjustment, gamut mapping, encode.
         if stock.hasResidual && !isBW {
@@ -264,6 +299,28 @@ public enum Developer {
             r = srgbEncode(r); g = srgbEncode(g); b = srgbEncode(b)
         }
         return out
+    }
+
+    // MARK: - Scanner optics
+
+    static let scannerBlurUm: Float = 3.5, scannerSharpenUm: Float = 9, scannerSharpenAmount: Float = 0.65
+
+    /// Scanner MTF (Gaussian) then unsharp masking on log luminance (hue-preserving, no colour fringes).
+    static func scannerOptics(_ img: inout RGBImage, pixelUm: Float) {
+        let w = img.width, h = img.height, n = w * h
+        let blur = scannerBlurUm / pixelUm
+        if blur > 0.3 {
+            img.r = Blur.gaussian(img.r, w, h, sigma: blur); img.g = Blur.gaussian(img.g, w, h, sigma: blur); img.b = Blur.gaussian(img.b, w, h, sigma: blur)
+        }
+        let radius = scannerSharpenUm / pixelUm
+        guard radius > 0.4 else { return }
+        var L = [Float](repeating: 0, count: n)
+        for i in 0..<n { L[i] = log(max(0.2126 * img.r[i] + 0.7152 * img.g[i] + 0.0722 * img.b[i], 1e-5)) }
+        let Lb = Blur.gaussian(L, w, h, sigma: radius)
+        for i in 0..<n {
+            let k = exp(scannerSharpenAmount * min(max(L[i] - Lb[i], -0.5), 0.5))
+            img.r[i] *= k; img.g[i] *= k; img.b[i] *= k
+        }
     }
 
     // MARK: - Optical scatter

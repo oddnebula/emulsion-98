@@ -79,6 +79,10 @@ struct GetInfoBox: View {
         if s.filter != .none { dev.append(s.filter.label + " filter") }
         if s.crossProcess && lib.stock.crossProcessed != nil { dev.append("cross-processed in C-41") }
         if s.redscale && lib.stock.kind == .colorNegative { dev.append("redscale") }
+        if lib.stock.kind == .blackWhite && abs(s.paperGrade - 2) > 0.1 { dev.append("paper grade " + Multigrade.label(s.paperGrade)) }
+        if abs(s.ccYellow) >= 0.5 || abs(s.ccMagenta) >= 0.5 { dev.append(String(format: "%+.0fY %+.0fM", s.ccYellow, s.ccMagenta)) }
+        if abs(s.printExposure) >= 0.02 { dev.append(String(format: "print %+.2f stops", s.printExposure)) }
+        if s.preflash >= 0.01 { dev.append(String(format: "pre-flash %.0f%%", s.preflash * 100)) }
         if s.ageYears >= 0.5 { dev.append(String(format: "%.0f years expired (%@)", s.ageYears, s.storage.label.lowercased())) }
         r.append(("Development:", dev.joined(separator: " · ")))
         return r

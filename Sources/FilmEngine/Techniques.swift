@@ -180,3 +180,76 @@ extension FilmModel {
         return t
     }
 }
+
+// MARK: - Variable-contrast (multigrade) B&W paper
+
+/// Variable-contrast paper: two emulsions, a blue-only high-contrast one and a green-sensitised
+/// low-contrast one (which keeps its native blue sensitivity). The enlarger's tungsten-halogen light
+/// through the contrast filter — Ilford-style grade filters, or yellow / magenta dialled into a colour
+/// head — sets the share of blue in the paper's exposure, computed spectrally; that share sets the grade.
+/// Grades map to the ISO paper ranges (R ≈ 180 for 00 down to ≈ 50 for grade 5).
+public enum Multigrade {
+    /// grade (−1 = "00") -> ISO range R.
+    static let isoRange: [(Float, Float)] = [(-1, 180), (0, 160), (1, 130), (2, 110), (3, 90), (4, 70), (5, 50)]
+    /// Colour-head equivalent of a grade filter (CC yellow, CC magenta); grade 2 ≈ unfiltered.
+    static func filtration(grade: Float) -> (y: Float, m: Float) { (max(0, 2 - grade) * 45, max(0, grade - 2) * 45) }
+
+    static let lamp = Spectral.enlarger(kelvin: 3200)
+    static let hard = Spectral.wavelengths.map { Spectral.lobe($0, 425, 25, 28) }
+    static let soft = Spectral.wavelengths.map { Spectral.lobe($0, 540, 28, 22) + 0.55 * Spectral.lobe($0, 425, 25, 28) }
+
+    /// Share of the exposure taken by the hard (blue) emulsion behind `y`/`m` CC of filtration.
+    static func blueShare(y: Float, m: Float) -> Float {
+        let L = Spectral.wavelengths
+        var eh: Float = 0, es: Float = 0, nh: Float = 0, ns: Float = 0
+        for i in 0..<Spectral.count {
+            let blueBand = 1 - LensFilter.edge(L[i], 505, 9)
+            let greenBand = LensFilter.edge(L[i], 495, 9) * (1 - LensFilter.edge(L[i], 585, 9))
+            let t = pow(10, -(y / 100) * blueBand - (m / 100) * greenBand)
+            eh += lamp[i] * t * hard[i]; es += lamp[i] * t * soft[i]
+            nh += lamp[i] * hard[i]; ns += lamp[i] * soft[i]
+        }
+        let h = eh / nh, s = es / ns
+        return h / (h + s)
+    }
+
+    private static let gradeTable: [(share: Float, grade: Float)] = stride(from: Float(-1), through: 5, by: 0.25).map { g in
+        let f = filtration(grade: g)
+        return (blueShare(y: f.y, m: f.m), g)
+    }
+
+    /// Effective grade for a filtration (interpolated along the grade-filter series).
+    public static func grade(y: Float, m: Float) -> Float {
+        let s = blueShare(y: y, m: m)
+        let t = gradeTable
+        if s <= t[0].share { return t[0].grade }
+        for (a, b) in zip(t, t.dropFirst()) where s <= b.share {
+            return a.grade + (b.grade - a.grade) * (s - a.share) / max(b.share - a.share, 1e-6)
+        }
+        return t[t.count - 1].grade
+    }
+
+    /// Paper contrast (log-log slope at mid grey) for a grade, relative to grade 2 = `grade2Contrast`.
+    static func contrast(grade g: Float, grade2Contrast: Float) -> Float {
+        let t = isoRange
+        let gg = min(max(g, t[0].0), t[t.count - 1].0)
+        var r: Float = 110
+        for (a, b) in zip(t, t.dropFirst()) where gg <= b.0 { r = a.1 + (b.1 - a.1) * (gg - a.0) / (b.0 - a.0); break }
+        return grade2Contrast * 110 / r
+    }
+
+    public static func label(_ g: Float) -> String {
+        g < -0.5 ? "00" : (g.truncatingRemainder(dividingBy: 1) == 0 ? String(format: "%.0f", g) : String(format: "%.1f", g))
+    }
+}
+
+extension FilmModel {
+    /// Paper slope parameter for a B&W print at `grade` with extra colour-head filtration.
+    func bwPaperKp(grade: Float, ccY: Float, ccM: Float) -> Float {
+        let f = Multigrade.filtration(grade: grade)
+        let g = (ccY == 0 && ccM == 0) ? grade : Multigrade.grade(y: f.y + ccY, m: f.m + ccM)
+        let c = Multigrade.contrast(grade: g, grade2Contrast: stock.paperContrast)
+        let fm = Developer.midGreyDensity / printRange
+        return c / (printRange * fm * (1 - fm))
+    }
+}

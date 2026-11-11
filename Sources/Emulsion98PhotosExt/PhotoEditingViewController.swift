@@ -123,7 +123,9 @@ final class ExtModel: ObservableObject {
                                     "halation": "\(s.halation)", "format": s.format.rawValue, "lab": "\(s.labCorrection)",
                                     "process": s.lab.rawValue, "sceneLight": "\(s.sceneLight)",
                                     "agitation": s.agitation.rawValue, "ageYears": "\(s.ageYears)", "storage": s.storage.rawValue,
-                                    "filter": s.filter.rawValue, "crossProcess": "\(s.crossProcess)", "redscale": "\(s.redscale)"])) ?? Data()
+                                    "filter": s.filter.rawValue, "crossProcess": "\(s.crossProcess)", "redscale": "\(s.redscale)",
+                                    "ccYellow": "\(s.ccYellow)", "ccMagenta": "\(s.ccMagenta)", "printExposure": "\(s.printExposure)",
+                                    "preflash": "\(s.preflash)", "paperGrade": "\(s.paperGrade)"])) ?? Data()
     }
 
     func restore(_ data: Data) {
@@ -143,6 +145,11 @@ final class ExtModel: ObservableObject {
         if let v = d["filter"].flatMap(LensFilter.init(rawValue:)) { s.filter = v }
         if let v = d["crossProcess"] { s.crossProcess = v == "true" }
         if let v = d["redscale"] { s.redscale = v == "true" }
+        if let v = d["ccYellow"].flatMap(Float.init) { s.ccYellow = v }
+        if let v = d["ccMagenta"].flatMap(Float.init) { s.ccMagenta = v }
+        if let v = d["printExposure"].flatMap(Float.init) { s.printExposure = v }
+        if let v = d["preflash"].flatMap(Float.init) { s.preflash = v }
+        if let v = d["paperGrade"].flatMap(Float.init) { s.paperGrade = v }
         settings = s
         if let id = d["stock"], FilmStock.stock(id: id) != nil { stockID = id }
     }

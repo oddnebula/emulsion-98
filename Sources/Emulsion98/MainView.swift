@@ -409,6 +409,35 @@ struct Inspector: View {
                 }
             }
 
+            if lib.stock.kind != .slide {
+                PlatinumGroup(title: "Printing") {
+                    VStack(alignment: .leading, spacing: 6) {
+                        if lib.stock.kind == .blackWhite {
+                            PlatinumSlider(title: "Paper grade", value: $lib.settings.paperGrade, range: -1...5, defaultValue: 2) {
+                                "Grade " + Multigrade.label(($0 * 2).rounded() / 2)
+                            }
+                            .balloon("Variable-contrast paper. Grade 00 is very soft, 5 very hard. The grade filter changes how much blue light reaches the paper's hard, blue-sensitive emulsion versus its soft, green-sensitised one.")
+                        }
+                        PlatinumSlider(title: "Print exposure", value: $lib.settings.printExposure, range: -1...1, defaultValue: 0) {
+                            abs($0) < 0.02 ? "Auto" : String(format: "%+.2f stops", $0)
+                        }
+                        .balloon("Print exposure. Longer exposure under the enlarger prints darker. Paper is contrasty, so small changes matter.")
+                        PlatinumSlider(title: lib.stock.kind == .blackWhite ? "Yellow (softer)" : "Yellow filtration", value: $lib.settings.ccYellow, range: -40...40, defaultValue: 0) {
+                            abs($0) < 0.5 ? "0 CC" : String(format: "%+.0f CC", $0)
+                        }
+                        .balloon(lib.stock.kind == .blackWhite ? "Yellow in the colour head: less blue light, a softer grade." : "Yellow filtration in the enlarger's colour head: more yellow takes blue light away and makes the print bluer.")
+                        PlatinumSlider(title: lib.stock.kind == .blackWhite ? "Magenta (harder)" : "Magenta filtration", value: $lib.settings.ccMagenta, range: -40...40, defaultValue: 0) {
+                            abs($0) < 0.5 ? "0 CC" : String(format: "%+.0f CC", $0)
+                        }
+                        .balloon(lib.stock.kind == .blackWhite ? "Magenta in the colour head: less green light, a harder grade." : "Magenta filtration: more magenta takes green light away and makes the print greener.")
+                        PlatinumSlider(title: "Pre-flash", value: $lib.settings.preflash, range: 0...1, defaultValue: 0) {
+                            $0 < 0.01 ? "Off" : String(format: "%.0f%%", $0 * 100)
+                        }
+                        .balloon("Pre-flash. A faint, even exposure of the paper before printing, so the brightest highlight detail of a dense negative prints instead of staying paper-white.")
+                    }
+                }
+            }
+
             PlatinumGroup(title: "Grain Loupe · 1:1") {
                 ZStack {
                     Plat.photoWell

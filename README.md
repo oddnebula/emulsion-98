@@ -76,7 +76,9 @@ Most "film filters" are a colour lookup table and a grain overlay. **Emulsion 98
 | Technique | What is simulated |
 |---|---|
 | **Push / pull** | Rated speed change with longer or shorter development. Measured push +1 and +2 curves where they exist (Portra 800). |
-| **Optical print vs lab scan** | RA-4 paper printing under a tungsten-halogen enlarger, or a minilab-style RGB scanner with per-channel inversion. |
+| **Optical print vs lab scan** | RA-4 paper printing under a tungsten-halogen enlarger, or a minilab-style RGB scanner with per-channel inversion, scanner optics and the lab's unsharp mask. |
+| **Darkroom printing** | Dichroic Y/M filtration in CC units, print exposure, and pre-flashing to hold highlight detail. |
+| **Multigrade B&W paper** | Grades 00–5, set by the blue:green split of the enlarger light between a hard and a soft emulsion. Colour-head Y/M work on B&W too. |
 | **Lens filters** | Yellow, orange, red, green and blue (Wratten 8–58), plus 85B, 80A, 81A and 82A, applied to the light *spectrum*, with through-the-lens metering. |
 | **Cross-processing** | E-6 slide film in C-41: measured slide curves mirrored and printed without an orange mask. |
 | **Redscale** | Film loaded backwards: light passes through the orange base and the layers in reverse order. |
@@ -84,6 +86,11 @@ Most "film filters" are a colour lookup table and a grain overlay. **Emulsion 98
 | **Expired film** | Per-layer speed loss, chemical fog and flatter contrast by storage (freezer to hot car), plus speed-dependent radiation fog. |
 | **Reciprocity failure** | Schwarzschild law per layer, from the EXIF shutter speed. |
 | **Scene light** | The film sees the real colour temperature from the RAW's white balance, and the lab corrects only part of it. |
+
+<p align="center">
+  <img src="docs/images/printing.jpg" alt="Darkroom printing simulation: Tri-X on multigrade paper at grades 00, 2 and 5; Portra 400 printed with +15 yellow and +15 magenta filtration, and as a lab scan" width="100%">
+  <br><sub>Printing: Tri-X on variable-contrast paper at grades 00, 2 and 5 (top). Portra 400 with +15 Y and +15 M enlarger filtration, and as a lab scan (bottom).</sub>
+</p>
 
 ## ▸ How the Film Simulation Works
 
@@ -136,7 +143,9 @@ Emulsion scatter uses a long-tailed PSF (a 4-Gaussian fit of the Frieser MTF 1/(
 <summary><b>6 · Printing, scanning and viewing</b></summary>
 
 - **Optical print:** a 3200 K tungsten-halogen enlarger behind a KG3 heat filter shines through the negative's dye spectra and orange mask onto the measured paper sensitivities (Kodak Portra Endura, Fujifilm Crystal Archive Type II, or Kodak 2383 for cine stocks). Printer lights are solved automatically, as a lab does.
-- **Lab scan:** narrow-band RGB LEDs (650 / 545 / 450 nm), per-channel inversion against a grey scale, a scanner tone curve and a colour boost.
+- **Printer's controls:** dichroic filtration acts on the paper's log exposures (+Y removes blue light, so the print goes bluer), and print exposure is in stops. **Pre-flash** adds a uniform sub-threshold exposure (a fraction of the paper's mid-scale exposure) that lifts dense highlights out of the paper's toe, and the printer re-sets exposure so mid grey is unchanged.
+- **Variable-contrast B&W paper:** a blue-only hard emulsion and a green-sensitised soft emulsion (which keeps its native blue sensitivity), exposed by the enlarger lamp through Ilford-style grade filters or colour-head Y/M. The spectrally computed blue share of the exposure maps to the ISO paper range (R ≈ 180 at grade 00 to ≈ 50 at grade 5). Grade 2 reproduces the classic graded print.
+- **Lab scan:** narrow-band RGB LEDs (650 / 545 / 450 nm), per-channel inversion against a grey scale, a scanner tone curve and a colour boost. Then the scanner's optics (≈ 3.5 µm blur, a 4000 dpi-class MTF) and the fixed unsharp mask minilabs apply (9 µm radius, on log luminance so it adds no colour fringes), which gives scans their crisp, grain-forward look.
 - **Viewing:** dyes are integrated under D50 (ISO 3664), or a ≈ 5400 K projector for 2383, and Bradford-adapted to the paper or base white. First-surface reflection and glare are included (0.4 % for glossy paper), which limits print blacks to a visual density of about 2.3–2.5.
 </details>
 
@@ -214,6 +223,7 @@ swift build -c release
 .build/release/emulsion-cli develop photo.RW2 portra400 out/           # full-resolution develop
 .build/release/emulsion-cli develop photo.RW2 trix400 out/ --filter red25 --agitation stand
 .build/release/emulsion-cli develop photo.RW2 velvia50 out/ --xpro     # cross-process; also --redscale, --scan, --push 2, --age 15 --storage fridge
+.build/release/emulsion-cli develop photo.RW2 hp5 out/ --grade 4 --preflash 0.5           # multigrade paper; also --cc-y 10 --cc-m 5 --print-ev 0.2
 .build/release/emulsion-cli sheet photo.RW2 sheet.jpg                  # contact sheet of every stock
 .build/release/emulsion-cli crop photo.RW2 cinestill800t c.jpg         # 1:1 crop
 .build/release/emulsion-cli diag portra400                             # ColorChecker accuracy

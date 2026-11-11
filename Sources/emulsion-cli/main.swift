@@ -33,6 +33,11 @@ if let a = opt("--storage"), let v = Storage(rawValue: a) { settings.storage = v
 if let a = opt("--filter"), let v = LensFilter(rawValue: a) { settings.filter = v }
 if args.contains("--xpro") { settings.crossProcess = true; args.removeAll { $0 == "--xpro" } }
 if args.contains("--redscale") { settings.redscale = true; args.removeAll { $0 == "--redscale" } }
+if let v = opt("--cc-y").flatMap(Float.init) { settings.ccYellow = v }
+if let v = opt("--cc-m").flatMap(Float.init) { settings.ccMagenta = v }
+if let v = opt("--print-ev").flatMap(Float.init) { settings.printExposure = v }
+if let v = opt("--preflash").flatMap(Float.init) { settings.preflash = v }
+if let v = opt("--grade").flatMap(Float.init) { settings.paperGrade = v }
 let kelvinOpt = opt("--kelvin").flatMap(Float.init)
 let timeOpt = opt("--time").flatMap(Double.init)
 

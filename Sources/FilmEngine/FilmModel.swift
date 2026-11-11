@@ -216,6 +216,7 @@ final class FilmModel {
                                   flare: stock.medium == .cinePrint ? Self.projectionFlare : Self.paperFlare)
     }
     private var range: Float { print.measured != nil ? print.measuredRange : print.range }
+    var printRange: Float { range }
     /// Non-image light: glossy RA-4 paper's first-surface reflection under 45°/0° viewing (≈ 0.4 %),
     /// a light box / scanner's veiling glare for transparencies, and screen flare for projection.
     static let paperFlare: Float = 0.004, transparencyFlare: Float = 0.0015, projectionFlare: Float = 0.002
@@ -335,12 +336,29 @@ final class FilmModel {
     }
 
     /// Printed (negative) or viewed (slide) display-linear colour for layer densities `d`.
-    @inline(__always) func render(_ d: SIMD3<Float>, balance: SIMD3<Float>, neutral n: Neutralizer = .identity) -> SIMD3<Float> {
+    /// Paper log exposure that prints mid-scale density, per paper layer (for pre-flashing).
+    var paperMidExposure: SIMD3<Float> {
+        if !paperCurves.isEmpty {
+            return SIMD3(Self.tabInverse(paperCurves[0], 0.75), Self.tabInverse(paperCurves[1], 0.75), Self.tabInverse(paperCurves[2], 0.75))
+        }
+        return SIMD3(repeating: Developer.logit(Developer.midGreyDensity / range) / paperKp)
+    }
+
+    /// `flash`: pre-flash exposure as a fraction of the paper's mid-scale exposure — a uniform, sub-threshold
+    /// exposure given to the paper before printing, which lifts it out of its toe so the faintest
+    /// highlight detail of a dense negative prints instead of staying paper-white.
+    @inline(__always) func render(_ d: SIMD3<Float>, balance: SIMD3<Float>, neutral n: Neutralizer = .identity,
+                                  flash: Float = 0, bwKp: Float = 0) -> SIMD3<Float> {
         switch stock.kind {
         case .colorNegative:
             var lp = negToPrint!.sample(d)
             let k = lp + (balance - n.refBalance)
             lp = SIMD3(lp.x + n.offset(0, k.x), lp.y + n.offset(1, k.y), lp.z + n.offset(2, k.z)) + balance
+            if flash > 0 {
+                let m = paperMidExposure
+                lp = SIMD3(log10(pow(10, lp.x) + flash * pow(10, m.x)), log10(pow(10, lp.y) + flash * pow(10, m.y)),
+                           log10(pow(10, lp.z) + flash * pow(10, m.z)))
+            }
             if !paperCurves.isEmpty {
                 return display!.sample(SIMD3(Self.tab(paperCurves[0], lp.x), Self.tab(paperCurves[1], lp.y), Self.tab(paperCurves[2], lp.z)))
             }
@@ -353,7 +371,10 @@ final class FilmModel {
             let dd = SIMD3(d.x + n.offset(0, d.x), d.y + n.offset(1, d.y), d.z + n.offset(2, d.z))
             return display!.sample(simd_max(dd * SIMD3(exp(balance.x), exp(balance.y), exp(balance.z)), .zero))
         case .blackWhite:
-            let dp = range * Developer.logistic(paperKp * (balance.x - d.x))
+            let kp = bwKp > 0 ? bwKp : paperKp
+            var lp = balance.x - d.x
+            if flash > 0 { lp = log10(pow(10, lp) + flash * pow(10, Developer.logit(Developer.midGreyDensity / range) / kp)) }
+            let dp = range * Developer.logistic(kp * lp)
             return SIMD3(repeating: (1 - Self.paperFlare) * pow(10, -dp) + Self.paperFlare)
         }
     }

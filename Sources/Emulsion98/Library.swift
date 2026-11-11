@@ -361,7 +361,10 @@ final class Library: ObservableObject {
                                                         "process": settings.lab.rawValue, "sceneLight": "\(settings.sceneLight)",
                                                         "agitation": settings.agitation.rawValue, "ageYears": "\(settings.ageYears)",
                                                         "storage": settings.storage.rawValue, "filter": settings.filter.rawValue,
-                                                        "crossProcess": "\(settings.crossProcess)", "redscale": "\(settings.redscale)"])) ?? Data()
+                                                        "crossProcess": "\(settings.crossProcess)", "redscale": "\(settings.redscale)",
+                                                        "ccYellow": "\(settings.ccYellow)", "ccMagenta": "\(settings.ccMagenta)",
+                                                        "printExposure": "\(settings.printExposure)", "preflash": "\(settings.preflash)",
+                                                        "paperGrade": "\(settings.paperGrade)"])) ?? Data()
             for p in list {
                 status = "Developing \(p.name) in \(stock.displayName)… (\(done + 1) of \(list.count))"
                 let base = p.url.deletingPathExtension().lastPathComponent

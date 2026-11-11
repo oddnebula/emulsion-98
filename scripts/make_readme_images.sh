@@ -26,6 +26,13 @@ dev portra_m2 portra400 --ev -2
 dev portra_p2 portra400 --ev 2
 swift scripts/contact_sheet.swift docs/images/latitude.jpg 3 640 \
   "Portra 400 · −2 stops=$T/portra_m2.jpg" "Portra 400 · normal=$T/portra400.jpg" "Portra 400 · +2 stops=$T/portra_p2.jpg"
+dev trix_g00 trix400 --grade -1
+dev trix_g5 trix400 --grade 5
+dev portra_y portra400 --cc-y 15
+dev portra_m portra400 --cc-m 15
+swift scripts/contact_sheet.swift docs/images/printing.jpg 3 640 \
+  "Tri-X · paper grade 00=$T/trix_g00.jpg" "Tri-X · paper grade 2=$T/trix400.jpg" "Tri-X · paper grade 5=$T/trix_g5.jpg" \
+  "Portra · +15 Y filtration=$T/portra_y.jpg" "Portra · lab scan=$T/portra_scan.jpg" "Portra · +15 M filtration=$T/portra_m.jpg"
 # 1:1 grain and halation
 $B crop $IN cinestill800t $T/halo.jpg --size 520 --cx 0.61 --cy 0.26 >/dev/null
 $B crop $IN portra800 $T/g1.jpg --size 520 --cx 0.80 --cy 0.42 >/dev/null

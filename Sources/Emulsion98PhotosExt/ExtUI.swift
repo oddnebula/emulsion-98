@@ -84,6 +84,7 @@ struct ExtRoot: View {
                 }
             }
             PlatinumGroup(title: "Darkroom") {
+                ScrollView(.vertical) {
                 VStack(alignment: .leading, spacing: 6) {
                     PlatinumSlider(title: "Exposure", value: $m.settings.exposure, range: -3...3, defaultValue: 0) {
                         abs($0) < 0.05 ? "Normal" : String(format: "%+.1f stops", $0)
@@ -104,6 +105,19 @@ struct ExtRoot: View {
                     if m.stock.kind == .colorNegative {
                         Toggle("Redscale", isOn: $m.settings.redscale).toggleStyle(PlatinumCheckboxStyle())
                     }
+                    if m.stock.kind == .blackWhite {
+                        PlatinumSlider(title: "Paper grade", value: $m.settings.paperGrade, range: -1...5, defaultValue: 2) {
+                            "Grade " + Multigrade.label(($0 * 2).rounded() / 2)
+                        }
+                    }
+                    if m.stock.kind != .slide {
+                        PlatinumSlider(title: "Print exposure", value: $m.settings.printExposure, range: -1...1, defaultValue: 0) {
+                            abs($0) < 0.02 ? "Auto" : String(format: "%+.2f stops", $0)
+                        }
+                        PlatinumSlider(title: "Pre-flash", value: $m.settings.preflash, range: 0...1, defaultValue: 0) {
+                            $0 < 0.01 ? "Off" : String(format: "%.0f%%", $0 * 100)
+                        }
+                    }
                     PlatinumPopup(title: "Agitation:", selection: $m.settings.agitation, options: Agitation.allCases.map { ($0, $0.label) })
                     PlatinumSlider(title: "Film age", value: $m.settings.ageYears, range: 0...30, defaultValue: 0) {
                         $0 < 0.5 ? "Fresh" : String(format: "%.0f years expired", $0)
@@ -113,6 +127,8 @@ struct ExtRoot: View {
                     }
                     PlatinumPopup(title: "Format:", selection: $m.settings.format, options: FilmFormat.allCases.map { ($0, $0.label) })
                 }
+                }
+                .frame(maxHeight: 330)
             }
             Text("Click Done in Photos to develop at full resolution. Revert to Original undoes it.")
                 .font(Plat.font(10)).foregroundStyle(Plat.dark).fixedSize(horizontal: false, vertical: true)
