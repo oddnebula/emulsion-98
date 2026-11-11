@@ -25,4 +25,7 @@ SOFTWARE.
 Exception: the measured film data in Data/spektrafilm/ and the file
 Sources/FilmEngine/MeasuredData.swift generated from it are licensed under
 Creative Commons Attribution-ShareAlike 4.0 (see Data/spektrafilm/SPEKTRAFILM_LICENSE.txt).
+Sources/FilmEngine/SkinData.swift contains statistics derived from the NIST Reference Data Set of
+Human Skin Reflectance (Cooksey, Allen & Tsai, J. Res. NIST 122, 26, 2017); source: National Institute
+of Standards and Technology. NIST data is not subject to copyright protection in the United States.
 docs/images/demo-photo.jpg is a CC0 (public domain) photo by Nilo Velez.

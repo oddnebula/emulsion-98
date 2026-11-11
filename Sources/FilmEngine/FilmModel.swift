@@ -784,6 +784,20 @@ extension FilmDiagnostics {
             s += String(format: "%-12@ linear E %6.3f %6.3f %6.3f  spectral E %6.3f %6.3f %6.3f  -> %3.0f %3.0f %3.0f\n",
                         name as NSString, lin.x, lin.y, lin.z, spec.x, spec.y, spec.z, enc.x, enc.y, enc.z)
         }
+        // Skin: smooth-basis vs measured-skin film exposure (identical colour to the eye).
+        let srgbToRec = Spectral.xyzToRec2020.compose(Spectral.srgbToXYZ)
+        for (name, c8) in [("dark skin", SIMD3<Float>(115, 82, 68)), ("light skin", SIMD3<Float>(194, 150, 130)),
+                           ("tan skin", SIMD3<Float>(170, 120, 90)), ("pale skin", SIMD3<Float>(232, 200, 185)),
+                           ("deep skin", SIMD3<Float>(90, 60, 45)), ("orange", SIMD3<Float>(214, 126, 44))] {
+            let lin = SIMD3(FilmModel.srgbDecode(c8.x / 255), FilmModel.srgbDecode(c8.y / 255), FilmModel.srgbDecode(c8.z / 255))
+            let rgb = srgbToRec.apply(lin)
+            let xyz = Spectral.srgbToXYZ.apply(lin), S = xyz.sum()
+            let a = table.matrix.apply(rgb), b = table.exposure(rgb.x, rgb.y, rgb.z)
+            let fx = SpectralUpsampler.srgbFix()
+            let wt = SkinPrior.spectrum(xyz: xyz * fx.fix, weights: fx.w)?.weight ?? 0
+            s += String(format: "%-10@ skin weight %.2f (xy distance %.1f)  E change R %+.1f%% G %+.1f%% B %+.1f%%\n", name as NSString,
+                        wt, SkinPrior.distance(xyz.x / S, xyz.y / S), (b.x / a.x - 1) * 100, (b.y / a.y - 1) * 100, (b.z / a.z - 1) * 100)
+        }
         // Continuity across the sRGB gamut boundary: grey -> P3 green.
         s += "sweep grey->P3 green (layer R exposure, the one that goes negative):"
         for k in 0...12 {
