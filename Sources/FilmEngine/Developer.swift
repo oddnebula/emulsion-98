@@ -142,6 +142,13 @@ public struct DevelopContext {
     /// Size in pixels of the whole frame at this buffer's scale, when the buffer is a crop of it (for
     /// position-dependent optics such as enlarger falloff). Nil: the buffer is the whole frame.
     public var fullSize: SIMD2<Int>? = nil
+    /// Long side, in pixels, of the camera image as captured (full sensor resolution), and the capture's
+    /// own blur there (σ, in those pixels): lens, anti-aliasing filter and demosaicing. The engine then adds
+    /// only the blur the film has beyond it (blurs add in quadrature). Nil: an ideal, infinitely sharp source.
+    public var capturePixels: Int? = nil
+    public var captureBlurPx: Float = 0.55
+    /// Include the print / scan optics (enlarger lens, scanner). Off for film-only MTF measurement.
+    public var printOptics = true
 
     public init(fullLongSide: Int, originX: Int = 0, originY: Int = 0, seed: UInt32 = 1,
                 isDisplayReferred: Bool = false, sceneKelvin: Float? = nil, clipLevel: Float? = nil) {
@@ -253,13 +260,18 @@ public enum Developer {
 
         // 2. Light scatter inside the emulsion. Light reaches the bottom (red) layer through the others,
         //    so the red record is softest and the top (blue) record sharpest.
+        //    The photo already carries the camera's blur, so each scatter lobe adds only what it has beyond it.
         let soft = stock.softnessUm / pixelUm
         let layerScatter: SIMD3<Float> = stock.kind == .blackWhite ? [1, 1, 1] : [1.25, 1.0, 0.8]
+        let camPx = context.capturePixels.map { context.captureBlurPx * settings.format.longSideMM * 1000 / Float(max($0, 1)) / pixelUm } ?? 0
         if !context.uniform && soft * layerScatter.max() > 0.3 {
-            R = scatter(R, w, h, sigma: soft * layerScatter.x)
-            G = scatter(G, w, h, sigma: soft * layerScatter.y)
-            B = scatter(B, w, h, sigma: soft * layerScatter.z)
+            R = scatter(R, w, h, sigma: soft * layerScatter.x, already: camPx)
+            G = scatter(G, w, h, sigma: soft * layerScatter.y, already: camPx)
+            B = scatter(B, w, h, sigma: soft * layerScatter.z, already: camPx)
         }
+        // Camera blur beyond the film's own (fine lobes of sharp films, or a low-resolution source) also
+        // stands in for part of the enlarger / scanner lens blur.
+        let excessPx = scatterExcess(sigma: soft * layerScatter.y, already: camPx)
 
         // 3. Halation: light reflected from the film base re-exposes the bottom (red) layers.
         let hal = stock.halationRGB * settings.halation
@@ -333,7 +345,8 @@ public enum Developer {
             }
             if !context.uniform {
                 EnlargerOptics.apply(&R, &G, &B, w: w, h: h, mono: isBW, pixelUm: pixelUm, format: settings.format,
-                                     context: context, falloff: settings.enlargerFalloff)
+                                     context: context, falloff: settings.enlargerFalloff, lens: context.printOptics,
+                                     already: excessPx)
             }
             map3(&R, &G, &B) { r, g, b in
                 var c = model.renderPrint(SIMD3(r, g, b), balance: balance, neutral: neutral, flash: flash, bwKp: bwKp, fade: fade,
@@ -353,7 +366,7 @@ public enum Developer {
 
         // 8b. Lab scanner optics: its lens / CCD blur (≈ 4000 dpi class) and the fixed unsharp mask
         //     minilab scanners apply, which is part of the familiar crisp, grain-forward scan look.
-        if scanner != nil && !context.uniform { scannerOptics(&out, pixelUm: pixelUm) }
+        if scanner != nil && !context.uniform && context.printOptics { scannerOptics(&out, pixelUm: pixelUm, already: excessPx) }
 
         // 8c. Paper surface: lustre and matte papers reflect more light off their surface than glossy (whose
         //     0.4 % is already in the print model), lifting the blacks toward the paper white.
@@ -395,9 +408,10 @@ public enum Developer {
     static let scannerBlurUm: Float = 3.5, scannerSharpenUm: Float = 9, scannerSharpenAmount: Float = 0.65
 
     /// Scanner MTF (Gaussian) then unsharp masking on log luminance (hue-preserving, no colour fringes).
-    static func scannerOptics(_ img: inout RGBImage, pixelUm: Float) {
+    static func scannerOptics(_ img: inout RGBImage, pixelUm: Float, already: Float = 0) {
         let w = img.width, h = img.height, n = w * h
-        let blur = scannerBlurUm / pixelUm
+        let b0 = scannerBlurUm / pixelUm
+        let blur = max(b0 * b0 - already * already, 0).squareRoot()
         if blur > 0.3 {
             img.r = Blur.gaussian(img.r, w, h, sigma: blur); img.g = Blur.gaussian(img.g, w, h, sigma: blur); img.b = Blur.gaussian(img.b, w, h, sigma: blur)
         }
@@ -425,14 +439,26 @@ public enum Developer {
         return raw.map { (scale: $0.0 / 0.18739, weight: $0.1 / t) }   // in units of the Gaussian sigma
     }()
 
-    static func scatter(_ p: [Float], _ w: Int, _ h: Int, sigma: Float) -> [Float] {
+    /// `already`: blur (σ, pixels) the image already has from the camera; each lobe adds the rest.
+    static func scatter(_ p: [Float], _ w: Int, _ h: Int, sigma: Float, already: Float = 0) -> [Float] {
         var out = [Float](repeating: 0, count: p.count)
         for lobe in scatterLobes {
-            let s = sigma * lobe.scale
+            let s0 = sigma * lobe.scale
+            let s = (max(s0 * s0 - already * already, 0)).squareRoot()
             let b = s < 0.25 ? p : Blur.gaussian(p, w, h, sigma: s)
             for i in 0..<out.count { out[i] += lobe.weight * b[i] }
         }
         return out
+    }
+
+    /// Lobe-weighted RMS of the camera blur that exceeds the scatter lobes (σ, pixels).
+    static func scatterExcess(sigma: Float, already: Float) -> Float {
+        var e2: Float = 0
+        for lobe in scatterLobes {
+            let s0 = sigma * lobe.scale
+            e2 += lobe.weight * max(already * already - s0 * s0, 0)
+        }
+        return e2.squareRoot()
     }
 
     // MARK: - DIR couplers

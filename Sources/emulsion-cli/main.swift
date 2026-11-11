@@ -136,7 +136,9 @@ case "granularity":
     for st in stocks(args[1]) { print(FilmDiagnostics.granularity(st)) }
 
 case "mtf":
-    print(FilmDiagnostics.mtf(stocks(args[1])[0]))
+    // mtf <stock> [--camera-blur µm]: film MTF, or the sharpness budget against a camera's own blur
+    if let c = opt("--camera-blur").flatMap(Float.init) { print(FilmDiagnostics.mtfBudget(stocks(args[1])[0], cameraBlurUm: c)) }
+    else { print(FilmDiagnostics.mtf(stocks(args[1])[0])) }
 
 case "gamut":
     print(FilmDiagnostics.gamutReport(stocks(args[1])[0]))

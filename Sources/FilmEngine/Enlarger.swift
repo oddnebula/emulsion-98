@@ -45,9 +45,11 @@ enum EnlargerOptics {
     /// taken as cos²θ (0.84 at the corner, a quarter stop). On a negative-to-positive print that means
     /// *lighter* corners, the opposite of camera vignetting, and why printers routinely burned them in.
     static func apply(_ R: inout [Float], _ G: inout [Float], _ B: inout [Float], w: Int, h: Int, mono: Bool,
-                      pixelUm: Float, format: FilmFormat, context: DevelopContext, falloff: Bool) {
+                      pixelUm: Float, format: FilmFormat, context: DevelopContext, falloff: Bool,
+                      lens: Bool = true, already: Float = 0) {
         let n = w * h
-        let blur = lensBlurUm / pixelUm
+        let b0 = lens ? lensBlurUm / pixelUm : 0
+        let blur = max(b0 * b0 - already * already, 0).squareRoot()
         guard blur > 0.3 || falloff else { return }
         let full = context.fullSize ?? SIMD2(w, h)
         let longPx = Float(max(full.x, full.y)), shortPx = Float(min(full.x, full.y))

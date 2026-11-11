@@ -28,6 +28,9 @@ public struct LoadedPhoto {
             .with {
                 $0.exposureTime = capture.exposureTime
                 $0.fullSize = SIMD2(Int((Float(image.width) * s).rounded()), Int((Float(image.height) * s).rounded()))
+                // Camera JPEG / HEIC: in-camera sharpening leaves less effective blur than a raw decode.
+                $0.capturePixels = self.fullLongSide
+                $0.captureBlurPx = isDisplayReferred ? 0.45 : 0.55
             }
     }
 }

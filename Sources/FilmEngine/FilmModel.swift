@@ -832,16 +832,25 @@ extension FilmDiagnostics {
 
     /// System MTF of the film (scatter + DIR adjacency effects), measured like a datasheet: low-contrast
     /// sine-wave exposures (±0.1 log E), response in effective log exposure, normalised at 1 cycle/mm.
-    public static func mtf(_ stock: FilmStock, frequencies: [Float] = [1, 2, 5, 10, 15, 20, 30, 40, 60, 80, 100]) -> String {
+    /// Film MTF (datasheet-style: film only, no print optics). With `cameraBlurUm`, the input already
+    /// carries a camera blur of that σ (at the film plane) and the engine is told so.
+    public static func mtf(_ stock: FilmStock, frequencies: [Float] = [1, 2, 5, 10, 15, 20, 30, 40, 60, 80, 100],
+                           cameraBlurUm: Float = 0, accountForCamera: Bool = true) -> [(Float, SIMD3<Float>)] {
         let w = 4096, h = 4
         var settings = DevelopSettings()
-        settings.grain = 0; settings.halation = 0; settings.sceneLight = false
-        let ctx = DevelopContext(fullLongSide: 36000)    // 1 µm per pixel on 35 mm
+        settings.grain = 0; settings.halation = 0; settings.sceneLight = false; settings.enlargerFalloff = false
+        var ctx = DevelopContext(fullLongSide: 36000)    // 1 µm per pixel on 35 mm
+        ctx.printOptics = false
+        if cameraBlurUm > 0 && accountForCamera {
+            ctx.captureBlurPx = 0.55
+            ctx.capturePixels = Int((0.55 * 36000 / cameraBlurUm).rounded())
+        }
         var rows: [(Float, SIMD3<Float>)] = []
         for f in frequencies {
             var img = RGBImage(width: w, height: h)
+            let cam = exp(-2 * Float.pi * Float.pi * cameraBlurUm * cameraBlurUm * (f / 1000) * (f / 1000))
             for y in 0..<h { for x in 0..<w {
-                let v = 0.18 * pow(10, 0.1 * sin(2 * Float.pi * f * Float(x) / 1000))
+                let v = 0.18 * pow(10, 0.1 * cam * sin(2 * Float.pi * f * Float(x) / 1000))
                 img.r[y * w + x] = v; img.g[y * w + x] = v; img.b[y * w + x] = v
             } }
             let out = Developer.develop(img, stock: stock, settings: settings, context: ctx)
@@ -862,11 +871,30 @@ extension FilmDiagnostics {
             rows.append((f, amp))
         }
         let ref = rows.first!.1
+        return rows.map { ($0.0, $0.1 / ref * 100) }
+    }
+
+    public static func mtf(_ stock: FilmStock) -> String {
         var s = "cycles/mm   R      G      B   (% response)\n"
-        for (f, a) in rows {
-            let r = a / ref * 100
-            s += String(format: "%5.0f   %5.0f  %5.0f  %5.0f\n", f, r.x, r.y, r.z)
+        for (f, r) in mtf(stock) { s += String(format: "%5.0f   %5.0f  %5.0f  %5.0f\n", f, r.x, r.y, r.z) }
+        return s
+    }
+
+    /// Film MTF vs what the engine delivers from a camera image whose own blur is `cameraBlurUm` (σ at the
+    /// film plane): stacking film blur on top of the camera's (old) vs adding only the difference.
+    public static func mtfBudget(_ stock: FilmStock, cameraBlurUm c: Float) -> String {
+        let fs: [Float] = [5, 10, 15, 20, 30, 40, 50, 60]
+        let film = mtf(stock, frequencies: fs), stacked = mtf(stock, frequencies: fs, cameraBlurUm: c, accountForCamera: false)
+        let budget = mtf(stock, frequencies: fs, cameraBlurUm: c)
+        var s = String(format: "%@, camera σ %.1f µm — green record, %% response\ncycles/mm  film  camera  stacked  budgeted\n", stock.id, c)
+        var e0: Float = 0, e1: Float = 0, n: Float = 0
+        for i in fs.indices {
+            let f = fs[i], cam = 100 * exp(-2 * Float.pi * Float.pi * c * c * (f / 1000) * (f / 1000))
+            s += String(format: "%6.0f   %5.0f  %5.0f   %5.0f    %5.0f\n", f, film[i].1.y, cam, stacked[i].1.y, budget[i].1.y)
+            // only where the camera still resolves (else nothing can restore it)
+            if cam > 50 { e0 += abs(stacked[i].1.y - film[i].1.y); e1 += abs(budget[i].1.y - film[i].1.y); n += 1 }
         }
+        s += String(format: "mean |error| vs film where the camera resolves (>50 %%): stacked %.1f, budgeted %.1f points", e0 / max(n, 1), e1 / max(n, 1))
         return s
     }
 

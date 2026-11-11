@@ -143,6 +143,11 @@ Apple's RAW engine decodes into wide-gamut linear Rec.2020 with no tone curve, n
 <summary><b>3 · Optics: scatter and halation</b></summary>
 
 Emulsion scatter uses a long-tailed PSF (a 4-Gaussian fit of the Frieser MTF 1/(1+(f/fc)²)) per layer: the deep red layer is 1.25× softer and the top blue layer 0.8×. Halation is light reflected from the base back into the red layer. It is energy-conserving, clipped highlights act as light sources, and its strength follows each datasheet's antihalation rating. Vision3's remjet stops it; CineStill glows.
+
+**Sharpness budget.** A digital photo already carries its camera's blur (lens, anti-aliasing filter, demosaicing: about σ = 0.55 px for a raw file and 0.45 px for a sharpened camera JPEG). Simply adding film scatter on top would blur twice. Blurs add in quadrature, so each scatter lobe only adds what it has beyond the camera's blur. Where the camera is softer than the film, the excess also stands in for part of the enlarger or scanner lens.
+- **Example, LX5 raw (10 MP, σ ≈ 5.4 µm at the film plane):** the green record's MTF error against Portra 400's film MTF falls from 11.3 to 3.4 points at frequencies the camera still resolves. Tri-X and CineStill improve about as much.
+- **Very sharp films (Ektar, Velvia):** these improve less, because detail the camera never recorded cannot be restored.
+- **Check it with:** `emulsion-cli mtf <stock> --camera-blur <µm>`.
 </details>
 
 <details>
@@ -296,7 +301,8 @@ swift build -c release
 .build/release/emulsion-cli lut all luts/                              # .cube LUTs for every stock (also --size 65)
 .build/release/emulsion-cli lutcheck photo.jpg portra400               # LUT vs full develop, in 8-bit levels
 .build/release/emulsion-cli granularity portra400                      # RMS granularity vs density
-.build/release/emulsion-cli mtf velvia50                               # system MTF, datasheet-style
+.build/release/emulsion-cli mtf velvia50                               # film MTF, datasheet-style
+.build/release/emulsion-cli mtf portra400 --camera-blur 5.4            # sharpness budget against a camera's own blur
 .build/release/emulsion-cli fade all --keeping framed                  # patch colours over 0–80 years
 .build/release/emulsion-cli priors                                     # which colours the skin / foliage priors claim
 ```
