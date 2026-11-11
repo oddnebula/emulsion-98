@@ -119,6 +119,9 @@ public struct DevelopContext {
     public var clipLevel: Float? = nil
     /// Shutter speed in seconds (EXIF), for reciprocity failure.
     public var exposureTime: Double? = nil
+    /// Treat every pixel as a large uniform area: no scatter, halation, grain or sharpening, and the
+    /// uniform-area result of the spatial chemistry (DIR, exhaustion). Used to build colour LUTs.
+    public var uniform = false
 
     public init(fullLongSide: Int, originX: Int = 0, originY: Int = 0, seed: UInt32 = 1,
                 isDisplayReferred: Bool = false, sceneKelvin: Float? = nil, clipLevel: Float? = nil) {
@@ -224,7 +227,7 @@ public enum Developer {
         //    so the red record is softest and the top (blue) record sharpest.
         let soft = stock.softnessUm / pixelUm
         let layerScatter: SIMD3<Float> = stock.kind == .blackWhite ? [1, 1, 1] : [1.25, 1.0, 0.8]
-        if soft * layerScatter.max() > 0.3 {
+        if !context.uniform && soft * layerScatter.max() > 0.3 {
             R = scatter(R, w, h, sigma: soft * layerScatter.x)
             G = scatter(G, w, h, sigma: soft * layerScatter.y)
             B = scatter(B, w, h, sigma: soft * layerScatter.z)
@@ -232,7 +235,7 @@ public enum Developer {
 
         // 3. Halation: light reflected from the film base re-exposes the bottom (red) layers.
         let hal = stock.halationRGB * settings.halation
-        if hal.max() > 1e-4 {
+        if !context.uniform && hal.max() > 1e-4 {
             let clip = (context.clipLevel ?? (R.max() ?? 1)) * gain
             let rad = max(stock.halationRadiusUm / pixelUm, 0.5)
             func halo(_ p: [Float]) -> [Float] {
@@ -257,7 +260,7 @@ public enum Developer {
 
         // 5. DIR couplers: developing layers release inhibitors that diffuse and hold back development
         //    in the same layer (edge effects) and neighbouring layers (interimage colour saturation).
-        applyDIR(&R, &G, &B, w: w, h: h, stock: stock, tone: tone, pixelUm: pixelUm, mono: isBW)
+        applyDIR(&R, &G, &B, w: w, h: h, stock: stock, tone: tone, pixelUm: pixelUm, mono: isBW, uniform: context.uniform)
 
         // 6. Development: characteristic curves -> dye / silver density per layer.
         map3(&R, &G, &B) { r, g, b in
@@ -269,11 +272,11 @@ public enum Developer {
         if settings.agitation != .continuous {
             applyExhaustion(&R, &G, &B, w: w, h: h, agitation: settings.agitation,
                             midDensity: model.density(0, 1, tone), pixelUm: pixelUm, mono: isBW,
-                            reversal: stock.kind == .slide, dmax: model.density(-4, 1, tone))
+                            reversal: stock.kind == .slide, dmax: model.density(-4, 1, tone), uniform: context.uniform)
         }
 
         // 7. Grain: stochastic crystal counts per layer, coarse fast + fine slow sublayers.
-        let grainBoost = settings.grain * (1 + 0.25 * max(settings.push, 0))
+        let grainBoost = context.uniform ? 0 : settings.grain * (1 + 0.25 * max(settings.push, 0))
         if let gl = model.grainLayers, !isBW {
             // Measured stocks: grain from the datasheet's fast / medium / slow sub-emulsions.
             addGrainLayered(&R, w: w, h: h, stock: stock, layers: gl, channel: 0, amount: grainBoost, context: context, pixelUm: pixelUm)
@@ -298,7 +301,7 @@ public enum Developer {
 
         // 8b. Lab scanner optics: its lens / CCD blur (≈ 4000 dpi class) and the fixed unsharp mask
         //     minilab scanners apply, which is part of the familiar crisp, grain-forward scan look.
-        if scanner != nil { scannerOptics(&out, pixelUm: pixelUm) }
+        if scanner != nil && !context.uniform { scannerOptics(&out, pixelUm: pixelUm) }
 
         // 8c. Paper surface: lustre and matte papers reflect more light off their surface than glossy (whose
         //     0.4 % is already in the print model), lifting the blacks toward the paper white.
@@ -383,13 +386,14 @@ public enum Developer {
     // MARK: - DIR couplers
 
     static func applyDIR(_ r: inout [Float], _ g: inout [Float], _ b: inout [Float], w: Int, h: Int,
-                         stock: FilmStock, tone: FilmModel.Tone, pixelUm: Float, mono: Bool) {
+                         stock: FilmStock, tone: FilmModel.Tone, pixelUm: Float, mono: Bool, uniform: Bool = false) {
         let same = stock.dirSame, inter = mono ? 0 : stock.dirInter
         if same + inter < 1e-4 { return }
         let lo: Float = stock.kind == .slide ? -2.2 : tone.toe
         let hi: Float = stock.kind == .slide ? 1.3 : tone.shoulder
         func inhibitor(_ p: [Float]) -> [Float] {
-            Blur.gaussian(p.map { softClip($0, lo, hi) }, w, h, sigma: stock.dirSpreadUm / pixelUm)
+            let c = p.map { softClip($0, lo, hi) }
+            return uniform ? c : Blur.gaussian(c, w, h, sigma: stock.dirSpreadUm / pixelUm)
         }
         let ir = inhibitor(r)
         if mono {

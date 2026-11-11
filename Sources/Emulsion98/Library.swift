@@ -495,6 +495,36 @@ final class Library: ObservableObject {
 
     func showAbout() { Retro.shared.showAbout = true }
 
+    /// File ▸ Export Film LUTs…: a .cube for every stock with the current darkroom settings.
+    func exportLUTs() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true; panel.canChooseFiles = false; panel.canCreateDirectories = true
+        panel.prompt = "Export LUTs"
+        panel.message = "Choose a folder for 3D LUTs (.cube) of every film, with the current darkroom settings."
+        guard panel.runModal() == .OK, let dir = panel.url, !busy else { return }
+        let settings = self.settings
+        busy = true; progress = 0
+        Task.detached(priority: .userInitiated) {
+            let stocks = FilmStock.catalog
+            for (i, st) in stocks.enumerated() {
+                var s = settings
+                if st.kind != .slide { s.crossProcess = false }
+                if st.kind != .colorNegative { s.redscale = false }
+                let text = LUTExport.cube(stock: st, settings: s, size: 33)
+                try? text.write(to: dir.appendingPathComponent(LUTExport.fileName(st)), atomically: true, encoding: .utf8)
+                await MainActor.run { self.progress = Double(i + 1) / Double(stocks.count) }
+            }
+            await MainActor.run {
+                self.busy = false; self.progress = nil
+                Retro.shared.play(.done)
+                self.status = "Exported \(stocks.count) film LUTs."
+                self.dialog = RetroDialog(icon: .film, title: "LUTs exported",
+                                          message: "\(stocks.count) film LUTs (.cube, 33³) are in “\(dir.lastPathComponent)”. They take display-referred sRGB / Rec.709 and hold each film's colour and tone; grain and halation stay in Emulsion 98.",
+                                          buttons: [("Show in Finder", { NSWorkspace.shared.activateFileViewerSelecting([dir]) }), ("OK", {})], defaultIndex: 1)
+            }
+        }
+    }
+
     /// Special ▸ Clean Up: arrange the filmstrip by name.
     func cleanUp() {
         photos.sort { $0.name.localizedStandardCompare($1.name) == .orderedAscending }

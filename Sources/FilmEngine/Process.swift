@@ -38,7 +38,7 @@ extension Developer {
     /// compresses large dense areas (compensation) while small highlights stay dense.
     static func applyExhaustion(_ r: inout [Float], _ g: inout [Float], _ b: inout [Float], w: Int, h: Int,
                                 agitation: Agitation, midDensity: Float, pixelUm: Float, mono: Bool,
-                                reversal: Bool = false, dmax: Float = 3) {
+                                reversal: Bool = false, dmax: Float = 3, uniform: Bool = false) {
         let p = agitation.params
         let n = r.count
         // Reversal film: what exhausts the (first) developer is the silver of the *exposed* areas, i.e.
@@ -52,8 +52,8 @@ extension Developer {
         let midDensity = reversal ? dmax - midDensity : midDensity
         var mean = [Float](repeating: 0, count: n)
         for i in 0..<n { mean[i] = mono ? r[i] : (r[i] + g[i] + b[i]) / 3 }
-        var field = Blur.gaussian(mean, w, h, sigma: max(p.spreadUm / pixelUm, 0.5))
-        if p.drag > 0 {
+        var field = uniform ? mean : Blur.gaussian(mean, w, h, sigma: max(p.spreadUm / pixelUm, 0.5))
+        if p.drag > 0 && !uniform {
             // One-sided exponential smear "downward" along the film width (the frame's short side).
             let alongY = w >= h
             let len = max(p.dragUm / pixelUm, 1)

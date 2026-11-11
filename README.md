@@ -22,6 +22,7 @@
   <a href="#-film-stocks">Film stocks</a> ·
   <a href="#-darkroom-techniques">Techniques</a> ·
   <a href="#-how-the-film-simulation-works">How it works</a> ·
+  <a href="#-film-luts-for-final-cut-resolve-photoshop-and-lightroom">LUTs</a> ·
   <a href="#-apple-photos">Apple Photos</a> ·
   <a href="#-installation">Install</a> ·
   <a href="#-faq">FAQ</a>
@@ -177,6 +178,14 @@ Emulsion scatter uses a long-tailed PSF (a 4-Gaussian fit of the Frieser MTF 1/(
 | Sharpening | Off: film was never digitally sharpened | Off |
 | Scene light | As-shot white balance | As-shot white balance |
 
+## ▸ Film LUTs for Final Cut, Resolve, Photoshop and Lightroom
+
+Every stock can be exported as a **3D LUT (`.cube`, 33³)**, using **File ▸ Export Film LUTs…** in the app or `emulsion-cli lut all out/`. A ready-made pack at default settings is attached to each [release](https://github.com/oddnebula/emulsion-98/releases/latest).
+
+Each entry is developed through the full engine as a large uniform area: spectral exposure, measured curves, DIR couplers, optical print or lab scan, paper. Darkroom settings (push, lab, filters, paper grade, expired film…) are baked in. Input is display-referred sRGB / Rec.709 (a camera JPEG or graded video), and output is sRGB.
+
+On the demo photo the LUT matches Emulsion 98's own render (with grain and halation off) to **0.3–0.7 levels out of 255 on average**. The rest is at sharp edges, from scatter and DIR edge effects. A LUT can't hold spatial effects, so grain, halation and edge effects stay in the app.
+
 ## ▸ Apple Photos
 
 <p align="center">
@@ -244,6 +253,8 @@ swift build -c release
 .build/release/emulsion-cli sheet photo.RW2 sheet.jpg                  # contact sheet of every stock
 .build/release/emulsion-cli crop photo.RW2 cinestill800t c.jpg         # 1:1 crop
 .build/release/emulsion-cli diag portra400                             # ColorChecker accuracy
+.build/release/emulsion-cli lut all luts/                              # .cube LUTs for every stock (also --size 65)
+.build/release/emulsion-cli lutcheck photo.jpg portra400               # LUT vs full develop, in 8-bit levels
 .build/release/emulsion-cli granularity portra400                      # RMS granularity vs density
 .build/release/emulsion-cli mtf velvia50                               # system MTF, datasheet-style
 ```
@@ -288,4 +299,4 @@ Yes. Each is simulated physically from the film data, not painted on as a colour
 
 Not affiliated with Kodak, Kodak Alaris, Fujifilm, Ilford, Harman, CineStill or Apple. Film stock names are trademarks of their owners and identify the look being emulated.
 
-<p align="center"><sub>film simulation · film emulation · analog film look · film grain · halation · Kodak Portra · Fujifilm Velvia · Kodak Tri-X · CineStill 800T · cross-processing · redscale · expired film · RAW photo editor for Mac · Apple Photos extension · SwiftUI · color science · spectral rendering</sub></p>
+<p align="center"><sub>film simulation · film emulation · film LUT · cube LUT · Final Cut Pro LUT · DaVinci Resolve LUT · analog film look · film grain · halation · Kodak Portra · Fujifilm Velvia · Kodak Tri-X · CineStill 800T · cross-processing · redscale · expired film · RAW photo editor for Mac · Apple Photos extension · SwiftUI · color science · spectral rendering</sub></p>

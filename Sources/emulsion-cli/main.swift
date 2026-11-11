@@ -76,6 +76,35 @@ case "ramp":
 case "technique":
     print(FilmDiagnostics.techniqueReport(stocks(args[1])[0], filter: settings.filter, redscale: settings.redscale))
 
+case "lut":
+    // lut <stock|all> <outDir> [--size 33]
+    guard args.count >= 3 else { fail("lut <stock|all> <outDir>") }
+    let dir = URL(fileURLWithPath: args[2])
+    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    let n = sizeOpt == 600 ? 33 : sizeOpt
+    for st in stocks(args[1]) {
+        let text = timeit(st.id) { LUTExport.cube(stock: st, settings: settings, size: n) }
+        try text.write(to: dir.appendingPathComponent(LUTExport.fileName(st)), atomically: true, encoding: .utf8)
+    }
+
+case "lutcheck":
+    // lutcheck <image> <stock>: LUT applied to the image vs a full develop without grain/halation
+    let photo = try PhotoIO.load(URL(fileURLWithPath: args[1]), maxLongSide: 900)
+    let st = stocks(args[2])[0]
+    var flat = settings; flat.grain = 0; flat.halation = 0
+    let lut = LUTExport.cube(stock: st, settings: flat)
+    var ctx = photo.context(seed: 1); ctx.isDisplayReferred = true
+    let dev = Developer.develop(photo.image, stock: st, settings: flat, context: ctx)
+    let orig = PhotoIO.displayOriginal(photo.image)
+    var sum: Double = 0, mx: Float = 0
+    for i in 0..<orig.r.count {
+        let c = LUTExport.apply(lut, r: orig.r[i], g: orig.g[i], b: orig.b[i])
+        let e = SIMD3<Float>(dev.r[i], dev.g[i], dev.b[i])
+        let d = max(abs(c.x - e.x), abs(c.y - e.y), abs(c.z - e.z)) * 255
+        sum += Double(d); mx = max(mx, d)
+    }
+    print(String(format: "%@: LUT vs full develop (no grain/halation): mean %.2f, max %.1f (8-bit levels)", st.id, sum / Double(orig.r.count), mx))
+
 case "granularity":
     for st in stocks(args[1]) { print(FilmDiagnostics.granularity(st)) }
 

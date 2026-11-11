@@ -39,6 +39,7 @@ struct Emulsion98App: App {
                 Button("Develop Selected Photo") { library.develop(all: false) }.keyboardShortcut("e")
                 Button("Develop All Photos") { library.develop(all: true) }.keyboardShortcut("e", modifiers: [.command, .shift])
                 Divider()
+                Button("Export Film LUTs…") { library.exportLUTs() }
                 Button("Get Info") { retro.showInfo = true }.keyboardShortcut("i").disabled(library.selection == nil)
                 Divider()
                 Button("Remove from Library") { library.removeSelected() }.keyboardShortcut(.delete, modifiers: [.command])
