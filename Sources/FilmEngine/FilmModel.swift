@@ -801,9 +801,9 @@ extension FilmDiagnostics {
             let xyz = Spectral.srgbToXYZ.apply(lin), S = xyz.sum()
             let a = table.matrix.apply(rgb), b = table.exposure(rgb.x, rgb.y, rgb.z)
             let fx = SpectralUpsampler.srgbFix()
-            let wt = SkinPrior.spectrum(xyz: xyz * fx.fix, weights: fx.w)?.weight ?? 0
+            let wt = SpectralPrior.skin.spectrum(xyz: xyz * fx.fix, weights: fx.w)?.weight ?? 0
             s += String(format: "%-10@ skin weight %.2f (xy distance %.1f)  E change R %+.1f%% G %+.1f%% B %+.1f%%\n", name as NSString,
-                        wt, SkinPrior.distance(xyz.x / S, xyz.y / S), (b.x / a.x - 1) * 100, (b.y / a.y - 1) * 100, (b.z / a.z - 1) * 100)
+                        wt, SpectralPrior.skin.distance(xyz.x / S, xyz.y / S), (b.x / a.x - 1) * 100, (b.y / a.y - 1) * 100, (b.z / a.z - 1) * 100)
         }
         // Continuity across the sRGB gamut boundary: grey -> P3 green.
         s += "sweep grey->P3 green (layer R exposure, the one that goes negative):"

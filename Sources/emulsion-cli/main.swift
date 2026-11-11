@@ -78,6 +78,22 @@ case "ramp":
 case "technique":
     print(FilmDiagnostics.techniqueReport(stocks(args[1])[0], filter: settings.filter, redscale: settings.redscale))
 
+case "spectra":
+    // spectra <stock|all> <file>: measured reflectances (name + 81 values per line, 380…780 nm / 5 nm)
+    // vs the engine's reconstruction — film-layer exposure error. --verbose lists every spectrum.
+    guard args.count >= 3 else { fail("spectra <stock|all> <file>") }
+    let verbose = args.contains("--verbose")
+    let text = try String(contentsOfFile: args[2], encoding: .utf8)
+    let list: [(String, [Float])] = text.split(separator: "\n").compactMap { line in
+        let f = line.split(separator: " ")
+        guard f.count == 82 else { return nil }
+        return (String(f[0]), f.dropFirst().compactMap { Float($0) })
+    }
+    for st in stocks(args[1]) { print(FilmDiagnostics.spectralCheck(st, spectra: list, verbose: verbose)) }
+
+case "priors":
+    print(FilmDiagnostics.priorReport())
+
 case "fade":
     // fade <stock|all>: patch colours (8-bit sRGB in -> out) as the picture ages, for the chosen keeping.
     for st in stocks(args[1]) { print(FilmDiagnostics.fadeReport(st, settings: settings)) }

@@ -39,7 +39,7 @@
 Most "film filters" are a colour lookup table and a grain overlay. **Emulsion 98 simulates the film itself.** Every pixel becomes a light spectrum, which is exposed onto each film layer's measured spectral sensitivity and developed through the stock's measured characteristic curves, couplers and grain statistics. Negatives are then printed on simulated paper under an enlarger lamp. The result reacts like film: overexposure, mixed light, tungsten bulbs, a red filter on Tri-X, a pushed roll of Portra 800 or a ten-year-old expired roll all behave the way they would on film.
 
 - 🎞 **23 film stocks:** Kodak Portra 160 / 400 / 800, Ektar 100, Gold 200, UltraMax 400, ColorPlus 200, Vision3 250D, Ektachrome E100, Kodachrome 64, Tri-X 400, T-Max 100 · Fujifilm Pro 400H, Superia X-TRA 400, C200, Velvia 100, Provia 100F, Astia 100F, Acros 100 II · Ilford HP5 Plus, FP4 Plus, Delta 3200 · CineStill 800T
-- 🔬 **Measured data, not presets:** 15 stocks and all 3 papers use digitised datasheet spectra and curves, and skin tones use NIST's measured human-skin spectra (see *Credits*).
+- 🔬 **Measured data, not presets:** 15 stocks and all 3 papers use digitised datasheet spectra and curves, skin tones use NIST's measured human-skin spectra, and foliage uses USGS measured leaf and canopy spectra (see *Credits*).
 - 🌫 **Real film grain** from crystal statistics of each layer's fast, medium and slow sub-emulsions, so underexposed negatives look grainy and overexposed ones look fine, as on real film.
 - 🔴 **Halation**, emulsion scatter and DIR-coupler edge effects, with CineStill's red glow around highlights.
 - 📷 **Camera-aware RAW pipeline**, tuned for the Panasonic Lumix LX5 and working with about 940 cameras through Apple's RAW engine. It reads the as-shot white balance, so daylight film really goes amber under tungsten.
@@ -124,6 +124,10 @@ Apple's RAW engine decodes into wide-gamut linear Rec.2020 with no tone curve, n
 - **Measured skin spectra:** skin-coloured pixels get a spectrum from the space of real human skin. That space is built from NIST's reference set of 100 measured subjects: a mean shape plus 2 principal components, which cover 98 % of the variation. The spectrum is solved to reproduce the pixel's exact XYZ and blended in by how typical it is of measured skin.
   - **Why it matters:** the colour is unchanged to the eye, but film sees real skin. On Portra 400, skin gets about 5–6 % more red-layer exposure and 6–9 % less blue than a generic smooth spectrum gives, which is where its warmth on skin comes from.
   - **Darker skin:** the NIST subjects under-represent darker skin, so the prior extends 3× further along the pigmentation (melanin) component than the measured spread. Darker skin is covered too, at about 55 % weight against 90 % for lighter skin.
+- **Measured foliage spectra:** green-vegetation pixels get a spectrum from the space of real leaves. It is built from 64 green leaf, needle, grass and canopy spectra in the USGS Spectral Library 7, picked by a spectral test rather than by name, with each of the 25 plant groups weighted equally.
+  - **Why it matters:** chlorophyll absorbs deeply at 670 nm, right where film's red layers peak, while the eye judges red mostly at 600–640 nm. A smooth spectrum fills that dip in. Against the measured spectra, it over-exposes the red layer by 8–20 % (Portra 400 +13 %, Velvia +17 %), which turns leaves olive-brown.
+  - **With the prior:** the error drops to about +2–3 % on the spectra the prior was built from, and to about +4.6 % (from +11 %) on plant groups it never saw.
+  - **What it leaves alone:** greys, sky, skin and saturated greens (more likely paint or plastic) are left to the smooth basis. Check with `emulsion-cli priors`.
 - **Scene light:** the CIE daylight series (from S0/S1/S2, which reproduce D65 to 0.03 %) at 4500 K and above, a blackbody for tungsten at 3500 K and below. Films are referenced to the light in their datasheets: D55 for daylight stocks, 3200 K for tungsten.
 - The spectrum is integrated against each layer's measured spectral sensitivity, including Fujifilm's fourth, cyan-sensitive layer.
 </details>
@@ -278,6 +282,7 @@ swift build -c release
 .build/release/emulsion-cli granularity portra400                      # RMS granularity vs density
 .build/release/emulsion-cli mtf velvia50                               # system MTF, datasheet-style
 .build/release/emulsion-cli fade all --keeping framed                  # patch colours over 0–80 years
+.build/release/emulsion-cli priors                                     # which colours the skin / foliage priors claim
 ```
 
 `scripts/make_readme_images.sh` regenerates every comparison image in this README.
@@ -290,6 +295,7 @@ These ideas were tested and dropped, so the model only keeps what measurably mat
 |---|---|
 | Biophysical skin model (melanin and haemoglobin tissue optics) | Could not reproduce pale or rosy skin chromaticity (off by about 0.02 in xy). Replaced by measured NIST skin spectra. |
 | Rayleigh + Mie sky spectra for blue-sky colours | Changed film exposure by under 2 %: the smooth basis already matches skylight. Removed. |
+| Foliage prior from the raw USGS population, ±2 σ window | The library's 25 near-identical marsh plots dominated, so ordinary green leaves fell outside the window. Fixed by weighting each plant group equally, finding components in a wavelength-weighted space and using a ±3–5 σ window. |
 | Wider lateral spread for interlayer DIR inhibitors | Raised the overshoot of the MTF peak (Ektar from 141 % to 152 %). Reverted. |
 | Boolean dye-cloud grain rendering | At RAW resolutions dye clouds are about a pixel wide, where the binned sub-emulsion statistics are equivalent. Not adopted. |
 
@@ -315,6 +321,7 @@ Yes. Each is simulated physically from the film data, not painted on as a colour
 - **Code:** MIT licence (see [`LICENSE`](LICENSE)).
 - **Measured film data:** [spektrafilm](https://github.com/andreavolpato/spektrafilm) profiles by Andrea Volpato, licensed **CC BY-SA 4.0**. Copies are in `Data/spektrafilm/` with the licence and a changelog of the changes made. `Sources/FilmEngine/MeasuredData.swift` is generated from them by `scripts/convert_spektrafilm.py` and is itself CC BY-SA 4.0. Photos you develop are not affected by this licence.
 - **Skin spectra:** derived from the "Reference Data Set of Human Skin Reflectance", National Institute of Standards and Technology. See C. C. Cooksey, D. W. Allen & B. K. Tsai, *J. Res. NIST* 122, 26 (2017), [doi:10.6028/jres.122.026](https://doi.org/10.6028/jres.122.026). `Sources/FilmEngine/SkinData.swift` holds only derived statistics (mean shape, principal components, chromaticity spread), generated by `scripts/convert_nist_skin.py`. NIST data is not subject to copyright in the US.
+- **Foliage spectra:** derived from the USGS Spectral Library Version 7 (R. F. Kokaly et al., U.S. Geological Survey Data Series 1035, 2017, [doi:10.3133/ds1035](https://doi.org/10.3133/ds1035); data [doi:10.5066/F7RR1WDJ](https://doi.org/10.5066/F7RR1WDJ)). `Sources/FilmEngine/FoliageData.swift` holds only derived statistics, generated by `scripts/convert_usgs_foliage.py`. USGS data is in the public domain.
 - **Demo photo:** beach at sunset by Nilo Velez, [WordPress.org Photos](https://wordpress.org/photos/photo/426884abe5/), **CC0** (public domain), metadata stripped. Every film rendering in this README is Emulsion 98's own output.
 - **Method references:** Mallett & Yuksel 2019 (spectral primary decomposition); CIE 15 (daylight, colorimetry); ISO 3664 (viewing); the Frieser, Nutting, Siedentopf and Selwyn models of emulsion MTF and granularity.
 

@@ -151,7 +151,7 @@ final class SpectralUpsampler {
     private(set) lazy var gamutSpectra: [[Float]?] = Self.loadOrSolveGamut(basis: basis)
 
     static var gamutCacheURL: URL {
-        cacheURL.deletingLastPathComponent().appendingPathComponent("gamut-v6-\(Spectral.count)-\(gamutN).bin")
+        cacheURL.deletingLastPathComponent().appendingPathComponent("gamut-v8-\(Spectral.count)-\(gamutN).bin")
     }
 
     /// XYZ (standard D65 observer, X+Y+Z = 1) of grid node (i, j).
@@ -196,9 +196,9 @@ final class SpectralUpsampler {
                 let c0 = simd_max(c, .zero)
                 var x = (0..<n).map { c0.x * basis[0][$0] + c0.y * basis[1][$0] + c0.z * basis[2][$0] }
                 if c.min() >= 0 {
-                    // In gamut: smooth basis — blended toward a measured-skin spectrum for skin colours.
-                    if SkinPrior.inRegion(xyz.x, xyz.y), let skin = SkinPrior.spectrum(xyz: target, weights: w) {
-                        for l in 0..<n { x[l] = x[l] * (1 - skin.weight) + skin.spectrum[l] * skin.weight }
+                    // In gamut: smooth basis — blended toward a measured skin or foliage spectrum for such colours.
+                    if let m = SpectralPrior.best(x: xyz.x, y: xyz.y, xyz: target, weights: w) {
+                        for l in 0..<n { x[l] = x[l] * (1 - m.weight) + m.spectrum[l] * m.weight }
                     }
                     lock.lock(); result[k] = x; lock.unlock(); continue
                 }
@@ -300,8 +300,8 @@ struct ExposureTable {
         let xyz = Self.toXYZ.apply(v)
         let S = xyz.sum()
         guard S > 1e-6 else { return lin }
-        // In gamut and not skin-coloured: exact linear path. Skin tones and out-of-gamut colours use the grid.
-        if srgb.min() >= -1e-4 * lum && !SkinPrior.inRegion(xyz.x / S, xyz.y / S) { return lin }
+        // In gamut and not skin / foliage coloured: exact linear path. Those and out-of-gamut colours use the grid.
+        if srgb.min() >= -1e-4 * lum && !SpectralPrior.anyInRegion(xyz.x / S, xyz.y / S) { return lin }
         let fx = (xyz.x / S - Self.gx0) * Self.gsx, fy = (xyz.y / S - Self.gy0) * Self.gsy
         let N = SpectralUpsampler.gamutN
         guard fx >= 0, fy >= 0, fx < Float(N - 1), fy < Float(N - 1) else { return lin }
