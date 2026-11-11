@@ -76,10 +76,13 @@ public struct DevelopSettings: Codable, Equatable {
     /// Years the finished print / slide (or, for scans, the negative) has been kept, and how.
     public var printAge: Float = 0
     public var keeping: Keeping = .album
+    /// Optical prints: enlarger light source (B&W: Callier effect) and the enlarging lens's corner falloff.
+    public var enlarger: Enlarger = .diffusion
+    public var enlargerFalloff = true
     public init() {}
 
     // Tolerant decoding: settings saved by older versions keep working when fields are added.
-    enum CodingKeys: String, CodingKey { case exposure, push, grain, halation, format, sceneLight, labCorrection, reciprocity, lab, agitation, ageYears, storage, filter, crossProcess, redscale, ccYellow, ccMagenta, printExposure, preflash, paperGrade, paperSurface, border, printAge, keeping }
+    enum CodingKeys: String, CodingKey { case exposure, push, grain, halation, format, sceneLight, labCorrection, reciprocity, lab, agitation, ageYears, storage, filter, crossProcess, redscale, ccYellow, ccMagenta, printExposure, preflash, paperGrade, paperSurface, border, printAge, keeping, enlarger, enlargerFalloff }
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         exposure = try c.decodeIfPresent(Float.self, forKey: .exposure) ?? 0
@@ -106,6 +109,8 @@ public struct DevelopSettings: Codable, Equatable {
         border = try c.decodeIfPresent(FilmBorder.self, forKey: .border) ?? .none
         printAge = try c.decodeIfPresent(Float.self, forKey: .printAge) ?? 0
         keeping = try c.decodeIfPresent(Keeping.self, forKey: .keeping) ?? .album
+        enlarger = try c.decodeIfPresent(Enlarger.self, forKey: .enlarger) ?? .diffusion
+        enlargerFalloff = try c.decodeIfPresent(Bool.self, forKey: .enlargerFalloff) ?? true
     }
 }
 
@@ -127,6 +132,9 @@ public struct DevelopContext {
     /// Treat every pixel as a large uniform area: no scatter, halation, grain or sharpening, and the
     /// uniform-area result of the spatial chemistry (DIR, exhaustion). Used to build colour LUTs.
     public var uniform = false
+    /// Size in pixels of the whole frame at this buffer's scale, when the buffer is a crop of it (for
+    /// position-dependent optics such as enlarger falloff). Nil: the buffer is the whole frame.
+    public var fullSize: SIMD2<Int>? = nil
 
     public init(fullLongSide: Int, originX: Int = 0, originY: Int = 0, seed: UInt32 = 1,
                 isDisplayReferred: Bool = false, sceneKelvin: Float? = nil, clipLevel: Float? = nil) {
@@ -210,6 +218,12 @@ public enum Developer {
             // keep mid grey on its density: balance = z(kp) + grey density
             let fm = Developer.logit(Developer.midGreyDensity / model.printRange)
             balance += SIMD3(repeating: fm / bwKp - fm / model.paperKp + settings.printExposure * log10(2))
+        }
+        // Condenser enlarger: the printer re-sets exposure so mid grey prints the same; the Callier effect
+        // then shows as extra contrast around it.
+        if stock.kind == .blackWhite && settings.enlarger == .condenser {
+            let dm = model.greyDensities(table: table, tone: tone, ev: filmEV + reciprocityEV).x
+            balance += SIMD3(repeating: settings.enlarger.printingDensity(dm) - dm)
         }
         let flash = stock.kind == .slide ? 0 : settings.preflash * 0.06
         // The printer re-sets exposure after flashing so mid grey prints the same (flash adds ≈ log(1+f) there).
@@ -298,11 +312,33 @@ public enum Developer {
         }
 
         // 8. Printing (negatives) / viewing (slides): spectral dyes -> paper -> D65 viewing.
+        if scanner == nil && stock.kind != .slide {
+            // Optical print: the light through the negative at the paper (log10 exposure per paper layer),
+            // then the enlarger's lens and falloff act on it, then the paper develops.
+            map3(&R, &G, &B) { r, g, b in
+                if isBW {
+                    r = -settings.enlarger.printingDensity(r); g = r; b = r
+                } else {
+                    let lp = model.negToPrint!.sample(SIMD3(r, g, b))
+                    r = lp.x; g = lp.y; b = lp.z
+                }
+            }
+            if !context.uniform {
+                EnlargerOptics.apply(&R, &G, &B, w: w, h: h, mono: isBW, pixelUm: pixelUm, format: settings.format,
+                                     context: context, falloff: settings.enlargerFalloff)
+            }
+            map3(&R, &G, &B) { r, g, b in
+                var c = model.renderPrint(SIMD3(r, g, b), balance: balance, neutral: neutral, flash: flash, bwKp: bwKp, fade: fade)
+                if !isBW { c = model.profile(c) }
+                r = c.x; g = c.y; b = c.z
+            }
+        } else {
         map3(&R, &G, &B) { r, g, b in
             var c = scanner?.render(SIMD3(r, g, b), balance: scanBal, fade: fade)
                 ?? model.render(SIMD3(r, isBW ? r : g, isBW ? r : b), balance: balance, neutral: neutral, flash: flash, bwKp: bwKp, fade: fade)
             if !isBW { c = model.profile(c) }
             r = c.x; g = c.y; b = c.z
+        }
         }
         var out = RGBImage(width: w, height: h, r: R, g: G, b: B)
 

@@ -451,6 +451,15 @@ struct Inspector: View {
                             $0 < 0.01 ? "Off" : String(format: "%.0f%%", $0 * 100)
                         }
                         .balloon("Pre-flash. A faint, even exposure of the paper before printing, so the brightest highlight detail of a dense negative prints instead of staying paper-white.")
+                        if lib.stock.kind == .blackWhite {
+                            PlatinumPopup(title: "Enlarger:", selection: $lib.settings.enlarger,
+                                          options: Enlarger.allCases.map { ($0, $0.label) })
+                                .balloon("Enlarger light. A condenser's focused light is scattered away by the silver grains (the Callier effect), so the negative prints denser where it has more silver: about a grade harder, with crisper grain. A diffusion head is gentler.")
+                        }
+                        if lib.settings.lab == .print || lib.stock.kind == .blackWhite {
+                            Toggle("Enlarger lens falloff", isOn: $lib.settings.enlargerFalloff).toggleStyle(PlatinumCheckboxStyle())
+                                .balloon("Light falloff. Less light reaches the paper's corners through the enlarging lens, so corners print slightly lighter — the opposite of camera vignetting. Printers burned them in by hand.")
+                        }
                     }
                 }
             }

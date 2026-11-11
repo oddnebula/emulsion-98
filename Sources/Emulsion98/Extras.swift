@@ -84,6 +84,7 @@ struct GetInfoBox: View {
         if abs(s.printExposure) >= 0.02 { dev.append(String(format: "print %+.2f stops", s.printExposure)) }
         if s.preflash >= 0.01 { dev.append(String(format: "pre-flash %.0f%%", s.preflash * 100)) }
         if s.ageYears >= 0.5 { dev.append(String(format: "%.0f years expired (%@)", s.ageYears, s.storage.label.lowercased())) }
+        if lib.stock.kind == .blackWhite && s.enlarger == .condenser { dev.append("condenser enlarger") }
         if s.printAge >= 0.5 { dev.append(String(format: "%.0f years old, %@", s.printAge, s.keeping.label.lowercased())) }
         r.append(("Development:", dev.joined(separator: " · ")))
         return r

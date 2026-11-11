@@ -351,7 +351,26 @@ final class FilmModel {
                                   flash: Float = 0, bwKp: Float = 0, fade: Fade? = nil) -> SIMD3<Float> {
         switch stock.kind {
         case .colorNegative:
-            var lp = negToPrint!.sample(d)
+            return renderPrint(negToPrint!.sample(d), balance: balance, neutral: n, flash: flash, fade: fade)
+        case .slide:
+            // Balance scales density, so clear film (D = 0) always stays clear.
+            let dd = SIMD3(d.x + n.offset(0, d.x), d.y + n.offset(1, d.y), d.z + n.offset(2, d.z))
+            var ds = simd_max(dd * SIMD3(exp(balance.x), exp(balance.y), exp(balance.z)), .zero)
+            if let f = fade { ds = f.apply(ds) }
+            return display!.sample(ds)
+        case .blackWhite:
+            return renderPrint(SIMD3(repeating: -d.x), balance: balance, flash: flash, bwKp: bwKp, fade: fade)
+        }
+    }
+
+    /// Print from the paper's log exposure per layer, before the printer's balance: for colour negatives
+    /// `negToPrint` of the negative densities, for B&W minus the (effective printing) density. Splitting
+    /// here lets the enlarger's optics act on the light at the paper.
+    @inline(__always) func renderPrint(_ lp0: SIMD3<Float>, balance: SIMD3<Float>, neutral n: Neutralizer = .identity,
+                                       flash: Float = 0, bwKp: Float = 0, fade: Fade? = nil) -> SIMD3<Float> {
+        switch stock.kind {
+        case .colorNegative:
+            var lp = lp0
             let k = lp + (balance - n.refBalance)
             lp = SIMD3(lp.x + n.offset(0, k.x), lp.y + n.offset(1, k.y), lp.z + n.offset(2, k.z)) + balance
             if flash > 0 {
@@ -370,14 +389,10 @@ final class FilmModel {
             if let f = fade { dp = f.apply(dp) }
             return display!.sample(dp)
         case .slide:
-            // Balance scales density, so clear film (D = 0) always stays clear.
-            let dd = SIMD3(d.x + n.offset(0, d.x), d.y + n.offset(1, d.y), d.z + n.offset(2, d.z))
-            var ds = simd_max(dd * SIMD3(exp(balance.x), exp(balance.y), exp(balance.z)), .zero)
-            if let f = fade { ds = f.apply(ds) }
-            return display!.sample(ds)
+            return .zero
         case .blackWhite:
             let kp = bwKp > 0 ? bwKp : paperKp
-            var lp = balance.x - d.x
+            var lp = balance.x + lp0.x
             if flash > 0 { lp = log10(pow(10, lp) + flash * pow(10, Developer.logit(Developer.midGreyDensity / range) / kp)) }
             var dp = range * Developer.logistic(kp * lp)
             if let f = fade { dp = f.silver(dp) }

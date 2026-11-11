@@ -86,6 +86,7 @@ Most "film filters" are a colour lookup table and a grain overlay. **Emulsion 98
 | **Agitation** | Continuous, intermittent or stand development: developer exhaustion, edge effects, compensation and bromide drag. |
 | **Expired film** | Per-layer speed loss, chemical fog and flatter contrast by storage (freezer to hot car), plus speed-dependent radiation fog. |
 | **Formats** | Half frame, 35 mm, 6×4.5, 6×6, 6×7 and 4×5 sheet film. A bigger negative means finer grain and less halation relative to the picture. |
+| **Enlarger** | The enlarging lens's blur (about 45 lp/mm at 50 % MTF) and corner falloff (corners get about 84 % of the light, so they print lighter, the opposite of camera vignetting). For B&W, a diffusion or condenser head: the condenser's Callier effect prints silver negatives about a grade harder, with crisper grain. |
 | **Paper surface** | Glossy, lustre or matte. Surface reflection sets the print's deepest black (about D-max 2.3, 2.0 and 1.6). |
 | **Borders** | A filed negative carrier (rough black rebate on a white paper margin), or a full-frame scan of the strip with ISO 35 mm perforations (4.75 mm pitch) and edge printing. Added when you develop. |
 | **Archival fading** | The finished print or slide ages for up to 80 years, in the dark or on display. Each dye fades at its own rate and leftover couplers turn the whites yellow, so old album prints go red, Ektachrome goes magenta, cine prints go pink and framed prints go cyan. For lab scans, the stored negative fades and is scanned as it is now. |
@@ -93,8 +94,8 @@ Most "film filters" are a colour lookup table and a grain overlay. **Emulsion 98
 | **Scene light** | The film sees the real colour temperature from the RAW's white balance, and the lab corrects only part of it. |
 
 <p align="center">
-  <img src="docs/images/printing.jpg" alt="Darkroom printing simulation: Tri-X on multigrade paper at grades 00, 2 and 5; Portra 400 printed with +15 yellow and +15 magenta filtration, and as a lab scan" width="100%">
-  <br><sub>Printing: Tri-X on variable-contrast paper at grades 00, 2 and 5 (top). Portra 400 with +15 Y and +15 M enlarger filtration, and as a lab scan (bottom).</sub>
+  <img src="docs/images/printing.jpg" alt="Darkroom printing simulation: Tri-X at grade 2 under a diffusion and a condenser enlarger, and at grade 5; Portra 400 printed with +15 yellow and +15 magenta filtration, and as a lab scan" width="100%">
+  <br><sub>Printing: Tri-X at grade 2 under a diffusion head and a condenser (the Callier effect), and at grade 5 (top). Portra 400 with +15 Y and +15 M enlarger filtration, and as a lab scan (bottom).</sub>
 </p>
 
 <p align="center">
@@ -166,6 +167,8 @@ Emulsion scatter uses a long-tailed PSF (a 4-Gaussian fit of the Frieser MTF 1/(
 - **Optical print:** a 3200 K tungsten-halogen enlarger behind a KG3 heat filter shines through the negative's dye spectra and orange mask onto the measured paper sensitivities (Kodak Portra Endura, Fujifilm Crystal Archive Type II, or Kodak 2383 for cine stocks). Printer lights are solved automatically, as a lab does.
 - **Printer's controls:** dichroic filtration acts on the paper's log exposures (+Y removes blue light, so the print goes bluer), and print exposure is in stops. **Pre-flash** adds a uniform sub-threshold exposure (a fraction of the paper's mid-scale exposure) that lifts dense highlights out of the paper's toe, and the printer re-sets exposure so mid grey is unchanged.
 - **Variable-contrast B&W paper:** a blue-only hard emulsion and a green-sensitised soft emulsion (which keeps its native blue sensitivity), exposed by the enlarger lamp through Ilford-style grade filters or colour-head Y/M. The spectrally computed blue share of the exposure maps to the ISO paper range (R ≈ 180 at grade 00 to ≈ 50 at grade 5). Grade 2 reproduces the classic graded print.
+- **Enlarger:** the paper's exposure is formed as light, so the enlarger acts on it before the paper responds. The enlarging lens blurs by σ ≈ 4.5 µm at the negative (MTF 50 % near 45 lp/mm, a good 6-element lens at f/8). Its relative illumination falls as cos²θ, about 84 % at the corners with the usual lens (focal length ≈ negative diagonal), which is what good enlarging lenses measure, so corners print lighter. Crops are placed in the full frame, so 1:1 views match the full print.
+- **Callier effect (B&W):** silver grains scatter light as well as absorb it. A condenser head's collimated light loses the scattered part, so the effective printing density rises to D·(1 + 0.28·(1 − e<sup>−D/0.4</sup>)): Q ≈ 1.28 at medium and high density, less in thin shadows. The printer re-sets exposure for mid grey, and the print comes out about one grade harder (measured: between grade 3 and 3¼) with crisper grain. Dye images barely scatter, so colour heads and colour prints are unaffected.
 - **Lab scan:** narrow-band RGB LEDs (650 / 545 / 450 nm), per-channel inversion against a grey scale, a scanner tone curve and a colour boost. Then the scanner's optics (≈ 3.5 µm blur, a 4000 dpi-class MTF) and the fixed unsharp mask minilabs apply (9 µm radius, on log luminance so it adds no colour fringes), which gives scans their crisp, grain-forward look.
 - **Viewing:** dyes are integrated under D50 (ISO 3664), or a ≈ 5400 K projector for 2383, and Bradford-adapted to the paper or base white. First-surface reflection and glare are included (0.4 % for glossy paper), which limits print blacks to a visual density of about 2.3–2.5.
 </details>
@@ -274,6 +277,7 @@ swift build -c release
 .build/release/emulsion-cli develop photo.RW2 hp5 out/ --grade 4 --preflash 0.5           # multigrade paper; also --cc-y 10 --cc-m 5 --print-ev 0.2
 .build/release/emulsion-cli develop photo.RW2 portra400 out/ --border fullFrame --format mf67 --surface lustre
 .build/release/emulsion-cli develop photo.RW2 e100 out/ --print-age 40 --keeping album        # archival fading (album | framed)
+.build/release/emulsion-cli develop photo.RW2 trix400 out/ --enlarger condenser --no-falloff   # Callier effect; even illumination
 .build/release/emulsion-cli sheet photo.RW2 sheet.jpg                  # contact sheet of every stock
 .build/release/emulsion-cli crop photo.RW2 cinestill800t c.jpg         # 1:1 crop
 .build/release/emulsion-cli diag portra400                             # ColorChecker accuracy

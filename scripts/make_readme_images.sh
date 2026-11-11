@@ -30,8 +30,9 @@ dev trix_g00 trix400 --grade -1
 dev trix_g5 trix400 --grade 5
 dev portra_y portra400 --cc-y 15
 dev portra_m portra400 --cc-m 15
+dev trix_cond trix400 --enlarger condenser
 swift scripts/contact_sheet.swift docs/images/printing.jpg 3 640 \
-  "Tri-X · paper grade 00=$T/trix_g00.jpg" "Tri-X · paper grade 2=$T/trix400.jpg" "Tri-X · paper grade 5=$T/trix_g5.jpg" \
+  "Tri-X · grade 2, diffusion=$T/trix400.jpg" "Tri-X · grade 2, condenser=$T/trix_cond.jpg" "Tri-X · paper grade 5=$T/trix_g5.jpg" \
   "Portra · +15 Y filtration=$T/portra_y.jpg" "Portra · lab scan=$T/portra_scan.jpg" "Portra · +15 M filtration=$T/portra_m.jpg"
 dev portra_border portra400 --border fullFrame
 dev trix_border trix400 --border filed --surface matte

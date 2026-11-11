@@ -117,6 +117,12 @@ struct ExtRoot: View {
                         PlatinumSlider(title: "Pre-flash", value: $m.settings.preflash, range: 0...1, defaultValue: 0) {
                             $0 < 0.01 ? "Off" : String(format: "%.0f%%", $0 * 100)
                         }
+                        if m.stock.kind == .blackWhite {
+                            PlatinumPopup(title: "Enlarger:", selection: $m.settings.enlarger, options: Enlarger.allCases.map { ($0, $0.label) })
+                        }
+                        if m.settings.lab == .print || m.stock.kind == .blackWhite {
+                            Toggle("Enlarger lens falloff", isOn: $m.settings.enlargerFalloff).toggleStyle(PlatinumCheckboxStyle())
+                        }
                     }
                     PlatinumPopup(title: "Agitation:", selection: $m.settings.agitation, options: Agitation.allCases.map { ($0, $0.label) })
                     PlatinumSlider(title: "Film age", value: $m.settings.ageYears, range: 0...30, defaultValue: 0) {

@@ -21,9 +21,14 @@ public struct LoadedPhoto {
     public var capture: CaptureInfo
 
     public func context(fullLongSide: Int? = nil, originX: Int = 0, originY: Int = 0, seed: UInt32) -> DevelopContext {
-        DevelopContext(fullLongSide: fullLongSide ?? image.longSide, originX: originX, originY: originY, seed: seed,
-                       isDisplayReferred: isDisplayReferred, sceneKelvin: capture.asShotKelvin)
-            .with { $0.exposureTime = capture.exposureTime }
+        let long = fullLongSide ?? image.longSide
+        let s = Float(long) / Float(max(image.longSide, 1))
+        return DevelopContext(fullLongSide: long, originX: originX, originY: originY, seed: seed,
+                              isDisplayReferred: isDisplayReferred, sceneKelvin: capture.asShotKelvin)
+            .with {
+                $0.exposureTime = capture.exposureTime
+                $0.fullSize = SIMD2(Int((Float(image.width) * s).rounded()), Int((Float(image.height) * s).rounded()))
+            }
     }
 }
 

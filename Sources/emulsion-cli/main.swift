@@ -42,6 +42,8 @@ if let v = opt("--border"), let b = FilmBorder(rawValue: v) { settings.border = 
 if let v = opt("--surface"), let b = PaperSurface(rawValue: v) { settings.paperSurface = b }
 if let v = opt("--print-age").flatMap(Float.init) { settings.printAge = v }
 if let v = opt("--keeping"), let k = Keeping(rawValue: v) { settings.keeping = k }
+if let v = opt("--enlarger"), let k = Enlarger(rawValue: v) { settings.enlarger = k }
+if args.contains("--no-falloff") { settings.enlargerFalloff = false; args.removeAll { $0 == "--no-falloff" } }
 let kelvinOpt = opt("--kelvin").flatMap(Float.init)
 let timeOpt = opt("--time").flatMap(Double.init)
 
@@ -113,7 +115,7 @@ case "lutcheck":
     // lutcheck <image> <stock>: LUT applied to the image vs a full develop without grain/halation
     let photo = try PhotoIO.load(URL(fileURLWithPath: args[1]), maxLongSide: 900)
     let st = stocks(args[2])[0]
-    var flat = settings; flat.grain = 0; flat.halation = 0
+    var flat = settings; flat.grain = 0; flat.halation = 0; flat.enlargerFalloff = false   // falloff is spatial
     let lut = LUTExport.cube(stock: st, settings: flat)
     var ctx = photo.context(seed: 1); ctx.isDisplayReferred = true
     let dev = Developer.develop(photo.image, stock: st, settings: flat, context: ctx)
