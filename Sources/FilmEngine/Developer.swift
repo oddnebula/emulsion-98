@@ -214,6 +214,29 @@ public enum Developer {
         let x = min(max(v, 0), 1)
         return x <= 0.0031308 ? 12.92 * x : 1.055 * pow(x, 1 / 2.4) - 0.055
     }
+    /// Undo a camera JPEG's tone curve (display-linear -> scene-linear, mid grey fixed).
+    ///
+    /// Camera curves have a contrast of ≈ 1.25 (log-log) through the mid-tones and a highlight shoulder that
+    /// compresses roughly the top 3.5 stops above mid grey into the last part of the range (typical
+    /// measured JPEG headroom is 3–3.7 EV). Below 0.43 this is exactly the plain power-law inverse; above, the
+    /// shoulder is inverted so JPEG white comes back at +3.6 stops instead of +2. Values beyond white (where
+    /// clipped highlights were recovered) scale on top of the clip point's scene value.
+    static let derenderKnee: Float = 1.0, derenderSlope: Float = 1.25, derenderShoulder: Float = 1.335
+    @inline(__always) static func derender(_ y: Float) -> Float {
+        if y <= 0 { return 0 }
+        if y <= derenderKneeY { return midGrey * pow(y / midGrey, 1 / derenderSlope) }   // mid-tones: plain power law
+        if y > 1 { return derenderWhite * y }
+        let g = log2(y / midGrey), g0 = derenderKnee * derenderSlope
+        let s: Float
+        if g <= g0 { s = g / derenderSlope } else {
+            let t = min((g - g0) / derenderShoulder, 0.999)
+            s = derenderKnee - derenderShoulder / derenderSlope * log(1 - t)
+        }
+        return midGrey * pow(2, s)
+    }
+    static let derenderWhite: Float = derender(1)
+    static let derenderKneeY: Float = midGrey * pow(2, derenderKnee * derenderSlope)
+
     /// sRGB transfer function (for showing undeveloped originals).
     public static func encode(_ v: Float) -> Float { srgbEncode(v) }
 
@@ -283,9 +306,7 @@ public enum Developer {
         map3(&R, &G, &B) { r, g, b in
             var rr = r, gg = g, bb = b
             if derender {
-                rr = midGrey * pow(max(rr, 0) / midGrey, 0.8)
-                gg = midGrey * pow(max(gg, 0) / midGrey, 0.8)
-                bb = midGrey * pow(max(bb, 0) / midGrey, 0.8)
+                rr = Developer.derender(rr); gg = Developer.derender(gg); bb = Developer.derender(bb)
             }
             let e = table.exposure(rr * gain, gg * gain, bb * gain)
             r = max(e.x, 1e-7); g = max(e.y, 1e-7); b = max(e.z, 1e-7)
@@ -300,9 +321,7 @@ public enum Developer {
             map3(&R2, &G2, &B2) { r, g, b in
                 var rr = r, gg = g, bb = b
                 if dr {
-                    rr = midGrey * pow(max(rr, 0) / midGrey, 0.8)
-                    gg = midGrey * pow(max(gg, 0) / midGrey, 0.8)
-                    bb = midGrey * pow(max(bb, 0) / midGrey, 0.8)
+                    rr = Developer.derender(rr); gg = Developer.derender(gg); bb = Developer.derender(bb)
                 }
                 let e = t2.exposure(rr * g2, gg * g2, bb * g2)
                 r = max(e.x, 0); g = max(e.y, 0); b = max(e.z, 0)
@@ -339,11 +358,9 @@ public enum Developer {
         // 3. Halation: light reflected from the film base re-exposes the bottom (red) layers.
         let hal = stock.halationRGB * settings.halation
         if !context.uniform && hal.max() > 1e-4 {
-            let clip = (context.clipLevel ?? (R.max() ?? 1)) * gain
             let rad = max(stock.halationRadiusUm / pixelUm, 0.5)
-            func halo(_ p: [Float]) -> [Float] {
-                // Blown highlights were brighter than the sensor recorded: boost them as light sources.
-                let s = p.map { v in v * (1 + 4 * ColorFingerprint.smooth(0.85 * clip, clip, v)) }
+            // Light sources carry their real (or, where the camera clipped, recovered) brightness.
+            func halo(_ s: [Float]) -> [Float] {
                 let near = Blur.gaussian(s, w, h, sigma: rad), far = Blur.gaussian(s, w, h, sigma: rad * 3)
                 var out = near
                 for i in 0..<out.count { out[i] = 0.65 * near[i] + 0.35 * far[i] }

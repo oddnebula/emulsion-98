@@ -62,6 +62,7 @@ func secondFrame(for photo: LoadedPhoto, crop: (Int, Int, Int, Int)? = nil) thro
     if let (x, y, w, h) = crop { img = img.cropped(x: x, y: y, width: w, height: h) }
     return SecondExposure(image: img, isDisplayReferred: p2.isDisplayReferred, sceneKelvin: p2.capture.asShotKelvin)
 }
+let recover = !args.contains("--no-recover"); args.removeAll { $0 == "--no-recover" }
 let kelvinOpt = opt("--kelvin").flatMap(Float.init)
 let timeOpt = opt("--time").flatMap(Double.init)
 
@@ -114,6 +115,9 @@ case "spectra":
 case "viewing":
     for st in stocks(args[1]) { print(FilmDiagnostics.viewingReport(st)) }
 
+case "highlights":
+    for st in stocks(args[1]) { print(FilmDiagnostics.highlightReport(st)) }
+
 case "priors":
     print(FilmDiagnostics.priorReport())
 
@@ -134,7 +138,7 @@ case "lut":
 
 case "lutcheck":
     // lutcheck <image> <stock>: LUT applied to the image vs a full develop without grain/halation
-    let photo = try PhotoIO.load(URL(fileURLWithPath: args[1]), maxLongSide: 900)
+    let photo = try PhotoIO.load(URL(fileURLWithPath: args[1]), maxLongSide: 900, recoverHighlights: false)   // a LUT sees 0…1 only
     let st = stocks(args[2])[0]
     var flat = settings; flat.grain = 0; flat.halation = 0; flat.enlargerFalloff = false   // falloff is spatial
     let lut = LUTExport.cube(stock: st, settings: flat)
@@ -174,8 +178,8 @@ case "develop":
     guard args.count >= 4 else { fail("develop <input> <stock|all> <outDir>") }
     let input = URL(fileURLWithPath: args[1]), outDir = URL(fileURLWithPath: args[3])
     try FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
-    let photo = try timeit("load") { try PhotoIO.load(input, maxLongSide: longOpt) }
-    print("size \(photo.image.width)x\(photo.image.height) full \(photo.fullLongSide) displayReferred \(photo.isDisplayReferred)")
+    let photo = try timeit("load") { try PhotoIO.load(input, maxLongSide: longOpt, recoverHighlights: recover) }
+    print("size \(photo.image.width)x\(photo.image.height) full \(photo.fullLongSide) displayReferred \(photo.isDisplayReferred) highlightsRecovered \(photo.highlightsRecovered)")
     print("camera \(photo.capture.cameraName) [\(photo.capture.profileName)] \(photo.capture.exposureSummary) WB \(photo.capture.asShotKelvin.map { "\(Int($0))K" } ?? "n/a")")
     let second = try secondFrame(for: photo)
     for s in stocks(args[2]) {
@@ -191,7 +195,7 @@ case "develop":
 case "crop":
     guard args.count >= 4 else { fail("crop <input> <stock> <out>") }
     let input = URL(fileURLWithPath: args[1])
-    let photo = try PhotoIO.load(input)
+    let photo = try PhotoIO.load(input, recoverHighlights: recover)
     let img = photo.image
     // clamp so the crop's origin matches what `cropped` returns (defects and falloff are position-aware)
     let x = max(0, min(img.width - sizeOpt, Int(Float(img.width) * cx) - sizeOpt / 2))

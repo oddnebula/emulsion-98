@@ -808,7 +808,7 @@ struct AboutBox: View {
                             .balloon("The Happy Camera. It is very pleased to see you. It likes being clicked.")
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Emulsion 98").font(Plat.font(20, bold: true)).foregroundStyle(Plat.ink)
-                            Text("Version 2.0 · Darkroom Edition").font(Plat.font(11)).foregroundStyle(Plat.dark)
+                            Text("Version 2.1 · Darkroom Edition").font(Plat.font(11)).foregroundStyle(Plat.dark)
                             Rectangle().fill(Plat.shade).frame(height: 1).padding(.vertical, 4)
                             infoRow("Built-in Memory:", ByteCountFormatter.string(fromByteCount: Int64(ProcessInfo.processInfo.physicalMemory), countStyle: .memory))
                             infoRow("Film stocks:", "\(FilmStock.catalog.count) emulsions")

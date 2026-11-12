@@ -19,6 +19,8 @@ public struct LoadedPhoto {
     /// True when the source was a camera-rendered JPEG/HEIC rather than RAW.
     public var isDisplayReferred: Bool
     public var capture: CaptureInfo
+    /// Clipped highlights were found and rebuilt at load.
+    public var highlightsRecovered = false
 
     public func context(fullLongSide: Int? = nil, originX: Int = 0, originY: Int = 0, seed: UInt32) -> DevelopContext {
         let long = fullLongSide ?? image.longSide
@@ -55,7 +57,7 @@ public enum PhotoIO {
     }
 
     /// Loads a photo as scene-linear RGB (linear sRGB primaries), optionally downscaled.
-    public static func load(_ url: URL, maxLongSide: Int? = nil) throws -> LoadedPhoto {
+    public static func load(_ url: URL, maxLongSide: Int? = nil, recoverHighlights: Bool = true) throws -> LoadedPhoto {
         // macOS privacy protection (TCC) makes blocked files decode as black instead of failing.
         do { try FileHandle(forReadingFrom: url).close() }
         catch { throw err("macOS blocked access to \(url.lastPathComponent). Add it again with Import Photos… to grant access.") }
@@ -118,7 +120,11 @@ public enum PhotoIO {
         }
         // OpenEXR is scene-linear (renders, HDR merges): like RAW, no camera tone curve to undo.
         let sceneLinear = raw || url.pathExtension.lowercased() == "exr"
-        return LoadedPhoto(image: img, fullLongSide: fullLong, isDisplayReferred: !sceneLinear, capture: capture)
+        // Where the camera clipped, rebuild the light the film would still have recorded.
+        let recovered = recoverHighlights && HighlightRecovery.recover(&img)
+        var p = LoadedPhoto(image: img, fullLongSide: fullLong, isDisplayReferred: !sceneLinear, capture: capture)
+        p.highlightsRecovered = recovered
+        return p
     }
 
     /// Linear Rec.2020 scene light -> sRGB-encoded image, for showing the undeveloped original.

@@ -139,6 +139,19 @@ A spectral, physically based model of shooting, developing and printing film (`S
 <summary><b>1 · Camera RAW → scene light</b></summary>
 
 Apple's RAW engine decodes into wide-gamut linear Rec.2020 with no tone curve, no local tone mapping and no digital sharpening. Lens correction and highlight recovery are on, and noise reduction is tuned per camera and ISO. The decoder also reads the as-shot white balance, which is the colour of the scene light. Scene-linear OpenEXR is also accepted.
+
+- **Camera JPEG / HEIC:** the camera's tone curve is inverted with a highlight shoulder. The contrast is 1.25 through the mid-tones (exactly the old power-law inverse below 0.43 linear). Above that, the curve opens up so JPEG white comes back at +3.6 stops over mid grey, the typical measured JPEG headroom, instead of +2. The film's own shoulder then has real highlight light to work with.
+- **Clipped-highlight recovery:** this runs once on the whole photo at load. Clipping is detected as a plateau at a channel's maximum, which camera JPEGs and clipped raws have and HDR files don't.
+  - **Partially clipped pixels** get their clipped channels rebuilt from the colour of the unclipped surroundings, which fixes yellow or cyan skies.
+  - **Fully clipped regions** get a smooth brightness dome from their edge inward, up to 4 stops, so a sun's core outshines its rim. Halation and the film's shoulder then see a light source rather than a flat plateau.
+  - **Tested** on a synthetic HDR scene (`emulsion-cli highlights <stock>`). Error against the true-HDR render, in 8-bit levels:
+
+    | Area | Clipped input | Recovered |
+    |---|---|---|
+    | Sun core | 20 | 0 |
+    | Sun halation zone (Portra) | 10.5 | 4.4 |
+    | Lamp | 11.6 | 5.6 |
+  - The recovered values are an estimate; real highlights beyond the clip cannot be known.
 </details>
 
 <details>
@@ -362,6 +375,7 @@ swift build -c release
 .build/release/emulsion-cli develop photo.RW2 portra400 out/ --view tungsten   # also daylight, warmLED, candle, projector
 .build/release/emulsion-cli develop photo.RW2 portra400 out/ --double other.RW2 --second-ev -0.5   # double exposure (--no-compensate)
 .build/release/emulsion-cli viewing all                                # dye metamerism under each viewing light
+.build/release/emulsion-cli highlights cinestill800t                   # highlight recovery vs a synthetic HDR truth (--no-recover to disable)
 .build/release/emulsion-cli sheet photo.RW2 sheet.jpg                  # contact sheet of every stock
 .build/release/emulsion-cli crop photo.RW2 cinestill800t c.jpg         # 1:1 crop
 .build/release/emulsion-cli diag portra400                             # ColorChecker accuracy
@@ -385,6 +399,7 @@ These ideas were tested and dropped, so the model only keeps what measurably mat
 | Biophysical skin model (melanin and haemoglobin tissue optics) | Could not reproduce pale or rosy skin chromaticity (off by about 0.02 in xy). Replaced by measured NIST skin spectra. |
 | Rayleigh + Mie sky spectra for blue-sky colours | Changed film exposure by under 2 %: the smooth basis already matches skylight. Removed. |
 | Foliage prior from the raw USGS population, ±2 σ window | The library's 25 near-identical marsh plots dominated, so ordinary green leaves fell outside the window. Fixed by weighting each plant group equally, finding components in a wavelength-weighted space and using a ±3–5 σ window. |
+| Halation boost for the brightest 15 % of exposures | An ad-hoc fix for clipped highlights that also brightened photos that weren't clipped. Replaced in 2.1 by clipped-highlight recovery and a camera-curve shoulder inverse. |
 | Wider lateral spread for interlayer DIR inhibitors | Raised the overshoot of the MTF peak (Ektar from 141 % to 152 %). Reverted. |
 | Boolean dye-cloud grain rendering | At RAW resolutions dye clouds are about a pixel wide, where the binned sub-emulsion statistics are equivalent. Not adopted. |
 
